@@ -1,0 +1,15 @@
+node_modules/
+.npm/
+
+# relatórios e evidências são gerados a cada execução (publicados como artefatos do pipeline)
+**/allure-results/
+**/allure-report/
+**/ai-triage/
+**/ai-heal/
+mobile/evidence/
+mobile/logs/
+mobile/apps/
+api/serverest.log
+
+.env
+.DS_Store

@@ -1,0 +1,73 @@
+# Pipeline equivalente no GitLab CI/CD (o PDF do desafio mobile pede GitLab).
+# Diferença em relação ao GitHub Actions: os runners compartilhados do GitLab.com não têm KVM nem macOS,
+# então a suíte mobile roda no BrowserStack (dispositivos reais). Com runner próprio (macOS/KVM),
+# os jobs mobile-android/ios do GitHub podem ser reproduzidos aqui sem mudanças no código.
+#
+# Variáveis (Settings → CI/CD → Variables): ANTHROPIC_API_KEY (opcional),
+# BROWSERSTACK_USERNAME e BROWSERSTACK_ACCESS_KEY (para o job mobile).
+
+stages: [test, report]
+
+default:
+  image: node:22
+
+variables:
+  npm_config_cache: "$CI_PROJECT_DIR/.npm"
+
+cache:
+  key:
+    files: [api/package-lock.json, ai/package-lock.json, mobile/package-lock.json]
+  paths: [.npm/]
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+ai-unit:
+  stage: test
+  script:
+    - cd ai && npm ci && npm test
+
+api:
+  stage: test
+  script:
+    - npm ci --prefix api && npm ci --prefix ai
+    - cd api
+    - (npx serverest --timeout 3600 > serverest.log 2>&1 &)
+    - npx --yes wait-on http://localhost:3000/usuarios --timeout 60000
+    - npm test
+  after_script:
+    - cd api && npx allure generate allure-results -o allure-report || true
+    - cd ../ai && npm run analyze:api || true
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths: [api/allure-report, api/allure-results, api/ai-triage, api/serverest.log]
+
+api-known-issues:
+  stage: test
+  allow_failure: true # divergências requisito x implementação: visíveis, mas não bloqueiam
+  script:
+    - npm ci --prefix api
+    - cd api
+    - (npx serverest --timeout 3600 > /dev/null 2>&1 &)
+    - npx --yes wait-on http://localhost:3000/usuarios --timeout 60000
+    - npm run test:known-issues
+
+mobile-browserstack:
+  stage: test
+  rules:
+    - if: $BROWSERSTACK_USERNAME && $BROWSERSTACK_ACCESS_KEY
+  script:
+    - npm ci --prefix mobile && npm ci --prefix ai
+    - cd mobile && npm run apps:download -- android
+    - npm run test:browserstack
+  after_script:
+    - cd mobile && npx allure generate allure-results -o allure-report || true
+    - cd ../ai && npm run analyze:mobile -- --suite "Mobile BrowserStack" || true
+    - npm run heal || true
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths: [mobile/allure-report, mobile/evidence, mobile/ai-triage, mobile/ai-heal]

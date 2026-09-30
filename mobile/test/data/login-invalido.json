@@ -1,0 +1,30 @@
+[
+  {
+    "id": "LOG-INV-01",
+    "descricao": "e-mail sem @ e senha válida",
+    "email": "rafael.qa.email.invalido",
+    "password": "Senha@123",
+    "errosEsperados": ["Please enter a valid email address"]
+  },
+  {
+    "id": "LOG-INV-02",
+    "descricao": "e-mail válido e senha com 7 caracteres (fronteira)",
+    "email": "rafael@carrefour.com.br",
+    "password": "1234567",
+    "errosEsperados": ["Please enter at least 8 characters"]
+  },
+  {
+    "id": "LOG-INV-03",
+    "descricao": "campos vazios",
+    "email": "",
+    "password": "",
+    "errosEsperados": ["Please enter a valid email address", "Please enter at least 8 characters"]
+  },
+  {
+    "id": "LOG-INV-04",
+    "descricao": "e-mail sem domínio de topo",
+    "email": "rafael@carrefour",
+    "password": "Senha@123",
+    "errosEsperados": ["Please enter a valid email address"]
+  }
+]

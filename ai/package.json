@@ -1,0 +1,21 @@
+{
+  "name": "carrefour-qa-ai-ai",
+  "version": "1.0.0",
+  "description": "Camada de IA: geração de casos, self-healing e triagem de falhas",
+  "scripts": {
+    "generate:api": "node generate-api-cases.js",
+    "analyze:api": "node analyze-failures.js --results ../api/allure-results --out ../api/ai-triage --suite API",
+    "analyze:mobile": "node analyze-failures.js --results ../mobile/allure-results --out ../mobile/ai-triage --suite Mobile",
+    "heal": "node self-heal.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.129.0",
+    "@xmldom/xmldom": "^0.9.12",
+    "ajv": "^8.20.0",
+    "dotenv": "^18.0.5",
+    "xpath": "^0.0.34"
+  },
+  "type": "module",
+  "private": true
+}

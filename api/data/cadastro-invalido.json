@@ -1,0 +1,71 @@
+[
+  {
+    "id": "CAD-INV-01",
+    "descricao": "corpo vazio",
+    "payload": {},
+    "errosEsperados": {
+      "nome": "nome é obrigatório",
+      "email": "email é obrigatório",
+      "password": "password é obrigatório",
+      "administrador": "administrador é obrigatório"
+    }
+  },
+  {
+    "id": "CAD-INV-02",
+    "descricao": "sem o campo nome",
+    "payload": { "email": "{{email}}", "password": "Senha@123", "administrador": "true" },
+    "errosEsperados": { "nome": "nome é obrigatório" }
+  },
+  {
+    "id": "CAD-INV-03",
+    "descricao": "sem o campo email",
+    "payload": { "nome": "Maria QA", "password": "Senha@123", "administrador": "true" },
+    "errosEsperados": { "email": "email é obrigatório" }
+  },
+  {
+    "id": "CAD-INV-04",
+    "descricao": "sem o campo password",
+    "payload": { "nome": "Maria QA", "email": "{{email}}", "administrador": "true" },
+    "errosEsperados": { "password": "password é obrigatório" }
+  },
+  {
+    "id": "CAD-INV-05",
+    "descricao": "sem o campo administrador",
+    "payload": { "nome": "Maria QA", "email": "{{email}}", "password": "Senha@123" },
+    "errosEsperados": { "administrador": "administrador é obrigatório" }
+  },
+  {
+    "id": "CAD-INV-06",
+    "descricao": "nome e password em branco",
+    "payload": { "nome": "", "email": "{{email}}", "password": "", "administrador": "true" },
+    "errosEsperados": { "nome": "nome não pode ficar em branco", "password": "password não pode ficar em branco" }
+  },
+  {
+    "id": "CAD-INV-07",
+    "descricao": "email em formato inválido",
+    "payload": { "nome": "Maria QA", "email": "maria.qa.sem.arroba", "password": "Senha@123", "administrador": "true" },
+    "errosEsperados": { "email": "email deve ser um email válido" }
+  },
+  {
+    "id": "CAD-INV-08",
+    "descricao": "administrador com valor fora do domínio",
+    "payload": { "nome": "Maria QA", "email": "{{email}}", "password": "Senha@123", "administrador": "sim" },
+    "errosEsperados": { "administrador": "administrador deve ser 'true' ou 'false'" }
+  },
+  {
+    "id": "CAD-INV-09",
+    "descricao": "tipos errados (number e boolean no lugar de string)",
+    "payload": { "nome": 123, "email": "{{email}}", "password": 456, "administrador": true },
+    "errosEsperados": {
+      "nome": "nome deve ser uma string",
+      "password": "password deve ser uma string",
+      "administrador": "administrador deve ser 'true' ou 'false'"
+    }
+  },
+  {
+    "id": "CAD-INV-10",
+    "descricao": "campo não previsto no contrato",
+    "payload": { "nome": "Maria QA", "email": "{{email}}", "password": "Senha@123", "administrador": "true", "cpf": "00000000000" },
+    "errosEsperados": { "cpf": "cpf não é permitido" }
+  }
+]

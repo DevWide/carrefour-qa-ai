@@ -1,0 +1,69 @@
+{
+  "_comment": "Repositório central de seletores. Page Objects leem daqui; o self-healing (ai/self-heal.js) propõe correções neste arquivo. Valor string = igual nas duas plataformas; objeto = por plataforma.",
+  "tabBar.home": "~Home",
+  "tabBar.login": "~Login",
+  "tabBar.forms": "~Forms",
+  "tabBar.swipe": "~Swipe",
+  "tabBar.drag": "~Drag",
+  "tabBar.menu": "~Menu",
+  "sideMenu.panel": "~tab-side-menu-panel",
+  "sideMenu.item": "~side-menu-item-{name}",
+  "home.screen": "~Home-screen",
+  "login.screen": "~Login-screen",
+  "forms.screen": "~Forms-screen",
+  "swipe.screen": "~Swipe-screen",
+  "drag.screen": "~Drag-drop-screen",
+  "permissions.screen": "~Permissions-screen",
+  "data.screen": "~DataManagement-screen",
+  "login.tabLogin": "~button-login-container",
+  "login.tabSignUp": "~button-sign-up-container",
+  "login.email": "~input-email",
+  "login.password": "~input-password",
+  "login.repeatPassword": "~input-repeat-password",
+  "login.submitLogin": "~button-LOGIN",
+  "login.submitSignUp": "~button-SIGN UP",
+  "login.errorText": {
+    "android": "android=new UiSelector().text(\"{text}\")",
+    "ios": "-ios predicate string:type == 'XCUIElementTypeStaticText' AND label == \"{text}\""
+  },
+  "forms.input": "~text-input",
+  "forms.inputResult": "~input-text-result",
+  "forms.switch": "~switch",
+  "forms.switchText": "~switch-text",
+  "forms.dropdown": "~Dropdown",
+  "forms.dropdownValue": {
+    "android": "//*[@content-desc=\"Dropdown\"]//android.widget.EditText",
+    "ios": "~text_input"
+  },
+  "forms.dropdownOption": {
+    "android": "android=new UiSelector().text(\"{text}\")",
+    "ios": "-ios class chain:**/XCUIElementTypePickerWheel"
+  },
+  "forms.dropdownDone": {
+    "android": "",
+    "ios": "~done_button"
+  },
+  "forms.buttonActive": "~button-Active",
+  "forms.buttonInactive": "~button-Inactive",
+  "swipe.card": "~card",
+  "swipe.cardTitle": {
+    "android": "android=new UiSelector().text(\"{text}\")",
+    "ios": "-ios predicate string:label == \"{text}\""
+  },
+  "alert.container": {
+    "android": "id=android:id/parentPanel",
+    "ios": "-ios class chain:**/XCUIElementTypeAlert"
+  },
+  "alert.title": {
+    "android": "id=android:id/alertTitle",
+    "ios": "-ios class chain:**/XCUIElementTypeAlert/**/XCUIElementTypeStaticText[1]"
+  },
+  "alert.message": {
+    "android": "id=android:id/message",
+    "ios": "-ios class chain:**/XCUIElementTypeAlert/**/XCUIElementTypeStaticText[2]"
+  },
+  "alert.button": {
+    "android": "android=new UiSelector().resourceIdMatches(\"android:id/button[0-9]\").textMatches(\"(?i){text}\")",
+    "ios": "~{text}"
+  }
+}

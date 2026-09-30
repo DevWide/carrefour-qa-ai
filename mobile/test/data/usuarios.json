@@ -1,0 +1,4 @@
+{
+  "loginValido": { "email": "rafael.qa@carrefour.com.br", "password": "Senha@1234" },
+  "cadastroValido": { "email": "novo.cliente@carrefour.com.br", "password": "Senha@1234" }
+}

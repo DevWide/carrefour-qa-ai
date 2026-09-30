@@ -1,0 +1,258 @@
+name: QA Automation com IA
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      gerar_casos_ia:
+        description: 'Gerar novos casos de API com IA (para revisão humana)'
+        type: boolean
+        default: false
+      browserstack:
+        description: 'Executar suíte mobile em dispositivos reais (BrowserStack)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }} # opcional: sem ela a camada de IA roda em modo heurístico
+
+jobs:
+  # ------------------------------------------------------------------ IA: testes unitários da própria camada
+  ai-unit:
+    name: IA · testes unitários
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: ai } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm, cache-dependency-path: ai/package-lock.json }
+      - run: npm ci
+      - run: npm test
+
+  # ------------------------------------------------------------------ API
+  api:
+    name: API · ServeRest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm, cache-dependency-path: '**/package-lock.json' }
+      - name: Instalar dependências
+        run: |
+          npm ci --prefix api
+          npm ci --prefix ai
+
+      - name: Subir ServeRest local (ambiente isolado e determinístico)
+        working-directory: api
+        run: |
+          npx serverest --timeout 3600 > serverest.log 2>&1 &
+          npx --yes wait-on http://localhost:3000/usuarios --timeout 60000
+
+      - name: Suíte principal
+        working-directory: api
+        run: npm test
+
+      - name: Divergências conhecidas (não bloqueia o pipeline)
+        if: always()
+        continue-on-error: true
+        working-directory: api
+        run: npm run test:known-issues
+
+      - name: Relatório Allure
+        if: always()
+        working-directory: api
+        run: npm run report:generate
+
+      - name: 🤖 Triagem de falhas por IA
+        if: always()
+        working-directory: ai
+        run: npm run analyze:api
+
+      - name: Publicar evidências
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-relatorios
+          path: |
+            api/allure-report
+            api/allure-results
+            api/ai-triage
+            api/serverest.log
+          retention-days: 30
+
+  # ------------------------------------------------------------------ IA: geração de casos (manual)
+  api-gerar-casos-ia:
+    name: IA · gerar casos de API (revisão humana)
+    if: github.event_name == 'workflow_dispatch' && inputs.gerar_casos_ia
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm, cache-dependency-path: '**/package-lock.json' }
+      - run: npm ci --prefix api && npm ci --prefix ai
+      - name: Subir ServeRest
+        working-directory: api
+        run: |
+          npx serverest --timeout 3600 > /dev/null 2>&1 &
+          npx --yes wait-on http://localhost:3000/usuarios --timeout 60000
+      - name: Gerar e validar casos (oráculo contra a API real)
+        working-directory: api
+        run: node ../ai/generate-api-cases.js --max 12
+      - name: Casos propostos (baixar, revisar e commitar os aprovados)
+        uses: actions/upload-artifact@v4
+        with:
+          name: casos-gerados-por-ia
+          path: api/data/cadastro-invalido.ai.json
+          if-no-files-found: ignore
+
+  # ------------------------------------------------------------------ Mobile · Android (emulador)
+  mobile-android:
+    name: Mobile · Android (emulador)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm, cache-dependency-path: '**/package-lock.json' }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+
+      - name: Habilitar KVM (aceleração do emulador)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+
+      - name: Instalar dependências, driver Appium e app
+        run: |
+          npm ci --prefix mobile
+          npm ci --prefix ai
+          cd mobile && npx appium driver install uiautomator2 && npm run apps:download -- android
+
+      - name: Executar suíte no emulador
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel_7
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          working-directory: mobile
+          script: npm run test:android
+
+      - name: Relatório Allure
+        if: always()
+        working-directory: mobile
+        run: npm run report:generate
+
+      - name: 🤖 Triagem de falhas por IA (com screenshots)
+        if: always()
+        working-directory: ai
+        run: npm run analyze:mobile -- --suite "Mobile Android"
+
+      - name: 🩺 Self-healing de seletores (sugestões, não aplica)
+        if: failure()
+        working-directory: ai
+        run: npm run heal
+
+      - name: Publicar evidências
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-android-relatorios
+          path: |
+            mobile/allure-report
+            mobile/evidence
+            mobile/logs
+            mobile/ai-triage
+            mobile/ai-heal
+          retention-days: 30
+
+  # ------------------------------------------------------------------ Mobile · iOS (simulador)
+  mobile-ios:
+    name: Mobile · iOS (simulador)
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm, cache-dependency-path: '**/package-lock.json' }
+
+      - name: Instalar dependências, driver Appium e app
+        run: |
+          npm ci --prefix mobile
+          npm ci --prefix ai
+          cd mobile && npx appium driver install xcuitest && npm run apps:download -- ios
+
+      - name: Executar suíte no simulador
+        working-directory: mobile
+        run: npm run test:ios
+
+      - name: Relatório Allure
+        if: always()
+        working-directory: mobile
+        run: npm run report:generate
+
+      - name: 🤖 Triagem de falhas por IA (com screenshots)
+        if: always()
+        working-directory: ai
+        run: npm run analyze:mobile -- --suite "Mobile iOS"
+
+      - name: 🩺 Self-healing de seletores (sugestões, não aplica)
+        if: failure()
+        working-directory: ai
+        run: npm run heal
+
+      - name: Publicar evidências
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-ios-relatorios
+          path: |
+            mobile/allure-report
+            mobile/evidence
+            mobile/logs
+            mobile/ai-triage
+            mobile/ai-heal
+          retention-days: 30
+
+  # ------------------------------------------------------------------ Mobile · BrowserStack (dispositivos reais)
+  mobile-browserstack:
+    name: Mobile · BrowserStack (dispositivos reais)
+    if: github.event_name == 'workflow_dispatch' && inputs.browserstack
+    runs-on: ubuntu-latest
+    env:
+      BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+      BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm, cache-dependency-path: '**/package-lock.json' }
+      - run: |
+          npm ci --prefix mobile
+          npm ci --prefix ai
+          cd mobile && npm run apps:download -- android
+      - working-directory: mobile
+        run: npm run test:browserstack
+      - if: always()
+        working-directory: mobile
+        run: npm run report:generate
+      - if: always()
+        working-directory: ai
+        run: npm run analyze:mobile -- --suite "Mobile BrowserStack"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-browserstack-relatorios
+          path: |
+            mobile/allure-report
+            mobile/evidence
+            mobile/ai-triage
+          retention-days: 30
