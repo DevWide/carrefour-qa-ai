@@ -3,7 +3,7 @@
 # então a suíte mobile roda no BrowserStack (dispositivos reais). Com runner próprio (macOS/KVM),
 # os jobs mobile-android/ios do GitHub podem ser reproduzidos aqui sem mudanças no código.
 #
-# Variáveis (Settings → CI/CD → Variables): GEMINI_API_KEY ou ANTHROPIC_API_KEY (opcional),
+# Variáveis (Settings → CI/CD → Variables): OPENAI_API_KEY, GEMINI_API_KEY ou ANTHROPIC_API_KEY (opcional),
 # BROWSERSTACK_USERNAME e BROWSERSTACK_ACCESS_KEY (para o job mobile).
 
 stages: [test, report]
