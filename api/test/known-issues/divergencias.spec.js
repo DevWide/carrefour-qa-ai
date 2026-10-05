@@ -55,6 +55,20 @@ describe('@known-issue Divergências conhecidas (requisito x implementação)', 
     expect(statuses[100]).to.equal(429);
   });
 
+  it('KI-05: não deve aceitar nome composto só de espaços (encontrado pela geração de casos com IA)', async () => {
+    await allure.severity('normal');
+    await allure.description(
+      'Caso CAD-IA-05, gerado por IA e confirmado na revisão humana: a API trata "     " como nome válido. ' +
+        'A regra "nome não pode ficar em branco" é aplicada à string vazia, mas não a espaços.',
+    );
+
+    const res = await UsuariosService.criar(novoUsuario({ nome: '     ' }));
+    if (res.status === 201) registrarParaLimpeza(res.data._id);
+
+    expect(res.status).to.equal(400);
+    expect(res.data).to.deep.equal({ nome: 'nome não pode ficar em branco' });
+  });
+
   it('KI-04: recurso inexistente deveria retornar 404, não 400', async () => {
     await allure.severity('minor');
 

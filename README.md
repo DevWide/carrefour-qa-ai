@@ -13,10 +13,11 @@ Automação de testes de **API** e **Mobile** com uma **camada de IA** aplicada 
 
 | Suíte | Ambiente | Resultado |
 |---|---|---|
-| API | ServeRest local, Node.js 22 | **51/51** ✅, mais 4 divergências conhecidas que falham por design (seção 3) |
+| API | ServeRest local, Node.js 22 | **54/54** ✅ (3 casos gerados por IA e revisados por mim), mais 5 divergências conhecidas que falham por design (seção 3) |
 | Mobile · Android | Emulador Pixel 7, Android 14 (API 34), macOS | **13/13** ✅: os 10 cenários, com o CT03 rodando 4 conjuntos de dados, em 2 min 10 s |
 | Mobile · iOS | Simulador (Xcode) | Configuração e seletores prontos; validação em andamento. No pipeline o job roda e publica evidências, mas não bloqueia |
 | Camada de IA | Testes unitários (`node --test`) | **7/7** ✅ |
+| Geração de casos com IA | OpenAI `gpt-4o-mini`, execução real | 9 casos propostos: 3 aprovados, 1 bug provável (KI-05) e 5 rejeitados com justificativa. Detalhes em [docs/evidencias/geracao-ia-openai.md](docs/evidencias/geracao-ia-openai.md) |
 
 Os screenshots da execução Android estão em [docs/evidencias/android](docs/evidencias/android). Também está documentado o caso real do self-healing, que diagnosticou "tela errada" na primeira execução: [docs/evidencias/self-heal-1a-execucao.md](docs/evidencias/self-heal-1a-execucao.md).
 
@@ -93,7 +94,7 @@ flowchart LR
 
 ## 3. Desafio de API
 
-**55 testes**: 51 na suíte principal e 4 divergências conhecidas, organizados por endpoint.
+**59 testes**: 54 na suíte principal (51 escritos à mão e 3 gerados por IA e revisados) e 5 divergências conhecidas, organizados por endpoint.
 
 | Pasta | Conteúdo |
 |---|---|
@@ -116,6 +117,7 @@ Descrevem o comportamento **esperado**, falham hoje e rodam num job separado (`@
 | KI-02 | Crítica | `GET /usuarios` devolve a **senha em texto puro** |
 | KI-03 | Normal | O requisito pede limite de 100 req/min; a API não aplica rate limit (nenhum 429) |
 | KI-04 | Menor | Recurso inexistente retorna 400 em vez de 404 |
+| KI-05 | Normal | Nome só com espaços é aceito. **Encontrado pela geração de casos com IA** (CAD-IA-05) e confirmado na revisão |
 
 Também documentado: `PUT` em id inexistente **cria** o usuário (upsert, 201), e a suíte cobre esse comportamento.
 

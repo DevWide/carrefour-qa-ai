@@ -1,0 +1,295 @@
+[
+  {
+    "id": "CAD-IA-01",
+    "revisado": false,
+    "descricao": "o nome é uma string muito longa",
+    "tecnica": "fronteira",
+    "payload": {
+      "nome": "a'.repeat(256)",
+      "email": "{{email}}",
+      "password": "Senha@123",
+      "administrador": "true"
+    },
+    "errosEsperados": {
+      "nome": "nome não pode ter mais de 255 caracteres"
+    },
+    "confianca": "alta",
+    "racional": "O nome deve ter um limite de caracteres, e uma string muito longa pode causar problemas de armazenamento ou processamento.",
+    "observado": {
+      "status": 201,
+      "body": {
+        "message": "Cadastro realizado com sucesso",
+        "_id": "4VqrJml9EiooFhrG"
+      }
+    },
+    "oraculo": "DIVERGE",
+    "geradoPor": {
+      "modelo": "gpt-4o-mini-2024-07-18",
+      "em": "2026-10-05T02:07:13.563Z"
+    },
+    "revisao": {
+      "por": "Rafael da Silva Barbosa",
+      "parecer": "Rejeitado: o modelo escreveu código (\"a'.repeat(256)\") dentro do JSON em vez de uma string longa de verdade, e o limite de 255 caracteres não está no contrato (oráculo inventado)."
+    }
+  },
+  {
+    "id": "CAD-IA-02",
+    "revisado": false,
+    "descricao": "o email é uma string muito longa",
+    "tecnica": "fronteira",
+    "payload": {
+      "nome": "Maria QA",
+      "email": "a'.repeat(256) + '@example.com'",
+      "password": "Senha@123",
+      "administrador": "true"
+    },
+    "errosEsperados": {
+      "email": "email não pode ter mais de 255 caracteres"
+    },
+    "confianca": "alta",
+    "racional": "O email deve ter um limite de caracteres, e uma string muito longa pode causar problemas de armazenamento ou processamento.",
+    "observado": {
+      "status": 400,
+      "body": {
+        "email": "email deve ser um email válido"
+      }
+    },
+    "oraculo": "DIVERGE",
+    "geradoPor": {
+      "modelo": "gpt-4o-mini-2024-07-18",
+      "em": "2026-10-05T02:07:13.564Z"
+    },
+    "revisao": {
+      "por": "Rafael da Silva Barbosa",
+      "parecer": "Rejeitado: mesmo problema do CAD-IA-01. A API rejeitou o e-mail por formato inválido (por causa das aspas), não pelo tamanho."
+    }
+  },
+  {
+    "id": "CAD-IA-03",
+    "revisado": true,
+    "descricao": "a senha é uma string vazia",
+    "tecnica": "tipo-invalido",
+    "payload": {
+      "nome": "Maria QA",
+      "email": "{{email}}",
+      "password": "",
+      "administrador": "true"
+    },
+    "errosEsperados": {
+      "password": "password não pode ficar em branco"
+    },
+    "confianca": "alta",
+    "racional": "A senha não pode ser vazia, pois é um campo obrigatório.",
+    "observado": {
+      "status": 400,
+      "body": {
+        "password": "password não pode ficar em branco"
+      }
+    },
+    "oraculo": "confere",
+    "geradoPor": {
+      "modelo": "gpt-4o-mini-2024-07-18",
+      "em": "2026-10-05T02:07:13.564Z"
+    },
+    "revisao": {
+      "por": "Rafael da Silva Barbosa",
+      "parecer": "Aprovado: isola a senha vazia (o caso manual CAD-INV-06 testa nome e senha vazios juntos)."
+    }
+  },
+  {
+    "id": "CAD-IA-04",
+    "revisado": true,
+    "descricao": "o administrador é um valor inesperado (array)",
+    "tecnica": "tipo-invalido",
+    "payload": {
+      "nome": "Maria QA",
+      "email": "{{email}}",
+      "password": "Senha@123",
+      "administrador": []
+    },
+    "errosEsperados": {
+      "administrador": "administrador deve ser 'true' ou 'false'"
+    },
+    "confianca": "alta",
+    "racional": "O campo administrador deve ser uma string e não pode ser um array.",
+    "observado": {
+      "status": 400,
+      "body": {
+        "administrador": "administrador deve ser 'true' ou 'false'"
+      }
+    },
+    "oraculo": "confere",
+    "geradoPor": {
+      "modelo": "gpt-4o-mini-2024-07-18",
+      "em": "2026-10-05T02:07:13.564Z"
+    },
+    "revisao": {
+      "por": "Rafael da Silva Barbosa",
+      "parecer": "Aprovado: tipo inesperado (array) para administrador, que não estava coberto pelos casos manuais."
+    }
+  },
+  {
+    "id": "CAD-IA-05",
+    "revisado": false,
+    "descricao": "o nome contém apenas espaços",
+    "tecnica": "formato",
+    "payload": {
+      "nome": "     ",
+      "email": "{{email}}",
+      "password": "Senha@123",
+      "administrador": "true"
+    },
+    "errosEsperados": {
+      "nome": "nome não pode ficar em branco"
+    },
+    "confianca": "alta",
+    "racional": "Um nome que contém apenas espaços não é considerado válido.",
+    "observado": {
+      "status": 201,
+      "body": {
+        "message": "Cadastro realizado com sucesso",
+        "_id": "DXbfKNXoeQUIUhm1"
+      }
+    },
+    "oraculo": "DIVERGE",
+    "geradoPor": {
+      "modelo": "gpt-4o-mini-2024-07-18",
+      "em": "2026-10-05T02:07:13.564Z"
+    },
+    "revisao": {
+      "por": "Rafael da Silva Barbosa",
+      "parecer": "Não entra na suíte principal: possível bug real. A API aceita um nome só com espaços. Virou a divergência conhecida KI-05."
+    }
+  },
+  {
+    "id": "CAD-IA-06",
+    "revisado": true,
+    "descricao": "o email contém caracteres especiais não permitidos",
+    "tecnica": "formato",
+    "payload": {
+      "nome": "Maria QA",
+      "email": "maria.qa@exemplo!com",
+      "password": "Senha@123",
+      "administrador": "true"
+    },
+    "errosEsperados": {
+      "email": "email deve ser um email válido"
+    },
+    "confianca": "alta",
+    "racional": "O email deve seguir o formato padrão e não pode conter caracteres especiais não permitidos.",
+    "observado": {
+      "status": 400,
+      "body": {
+        "email": "email deve ser um email válido"
+      }
+    },
+    "oraculo": "confere",
+    "geradoPor": {
+      "modelo": "gpt-4o-mini-2024-07-18",
+      "em": "2026-10-05T02:07:13.564Z"
+    },
+    "revisao": {
+      "por": "Rafael da Silva Barbosa",
+      "parecer": "Aprovado: variação de formato de e-mail não coberta pelos casos manuais."
+    }
+  },
+  {
+    "id": "CAD-IA-07",
+    "revisado": false,
+    "descricao": "o payload é um objeto vazio",
+    "tecnica": "outro",
+    "payload": {},
+    "errosEsperados": {
+      "nome": "nome é obrigatório",
+      "email": "email é obrigatório",
+      "password": "password é obrigatório",
+      "administrador": "administrador é obrigatório"
+    },
+    "confianca": "alta",
+    "racional": "Um objeto vazio não pode ser aceito, pois todos os campos são obrigatórios.",
+    "observado": {
+      "status": 400,
+      "body": {
+        "nome": "nome é obrigatório",
+        "email": "email é obrigatório",
+        "password": "password é obrigatório",
+        "administrador": "administrador é obrigatório"
+      }
+    },
+    "oraculo": "confere",
+    "geradoPor": {
+      "modelo": "gpt-4o-mini-2024-07-18",
+      "em": "2026-10-05T02:07:13.564Z"
+    },
+    "revisao": {
+      "por": "Rafael da Silva Barbosa",
+      "parecer": "Rejeitado: duplica o caso manual CAD-INV-01 (corpo vazio)."
+    }
+  },
+  {
+    "id": "CAD-IA-08",
+    "revisado": false,
+    "descricao": "o email já está em uso",
+    "tecnica": "combinacao",
+    "payload": {
+      "nome": "Maria QA",
+      "email": "{{email}}",
+      "password": "Senha@123",
+      "administrador": "true"
+    },
+    "errosEsperados": {
+      "message": "Este email já está sendo usado"
+    },
+    "confianca": "alta",
+    "racional": "O sistema deve impedir a criação de usuários com emails duplicados.",
+    "observado": {
+      "status": 201,
+      "body": {
+        "message": "Cadastro realizado com sucesso",
+        "_id": "Dde5LxtohwJDEN0L"
+      }
+    },
+    "oraculo": "DIVERGE",
+    "geradoPor": {
+      "modelo": "gpt-4o-mini-2024-07-18",
+      "em": "2026-10-05T02:07:13.564Z"
+    },
+    "revisao": {
+      "por": "Rafael da Silva Barbosa",
+      "parecer": "Rejeitado: erro de desenho do teste. O payload usa {{email}}, que gera um e-mail único, então nunca haveria duplicidade. O cenário de e-mail duplicado já está coberto em cadastrar.spec.js."
+    }
+  },
+  {
+    "id": "CAD-IA-09",
+    "revisado": false,
+    "descricao": "o nome contém injeção de SQL",
+    "tecnica": "injecao",
+    "payload": {
+      "nome": "' OR '1'='1",
+      "email": "{{email}}",
+      "password": "Senha@123",
+      "administrador": "true"
+    },
+    "errosEsperados": {
+      "nome": "nome não pode conter caracteres inválidos"
+    },
+    "confianca": "alta",
+    "racional": "O sistema deve validar e rejeitar entradas que possam ser usadas para injeção de SQL.",
+    "observado": {
+      "status": 201,
+      "body": {
+        "message": "Cadastro realizado com sucesso",
+        "_id": "XCu1g5DvJhVX1Py9"
+      }
+    },
+    "oraculo": "DIVERGE",
+    "geradoPor": {
+      "modelo": "gpt-4o-mini-2024-07-18",
+      "em": "2026-10-05T02:07:13.564Z"
+    },
+    "revisao": {
+      "por": "Rafael da Silva Barbosa",
+      "parecer": "Rejeitado: oráculo inventado. O ServeRest usa banco NoSQL e não tem regra de caracteres no nome; aceitar o texto é o comportamento esperado. Injeção relevante seria verificar que o valor é salvo literalmente, sem ser interpretado."
+    }
+  }
+]

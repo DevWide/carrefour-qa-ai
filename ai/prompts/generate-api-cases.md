@@ -9,4 +9,6 @@ Regras:
 - Em `payload`, use o marcador `{{email}}` sempre que o caso precisar de um e-mail VÁLIDO e único. Use um e-mail literal só quando o próprio e-mail for o objeto do teste.
 - Em `errosEsperados`, escreva o objeto de erro que a API DEVERIA retornar (formato `{ "campo": "mensagem" }`), seguindo o padrão das mensagens dos exemplos existentes.
 - Se você não tiver certeza do comportamento esperado, marque `confianca: "baixa"` e explique em `racional`. Um humano vai revisar cada caso antes de ele entrar na suíte.
+- `payload` deve conter apenas valores JSON literais. Nunca escreva código ou expressões (ex.: `"a".repeat(256)`); se precisar de uma string longa, escreva a string de fato.
+- `descricao` completa a frase "deve rejeitar ..." e não deve repetir esse começo.
 - Gere no máximo {{max}} casos.
