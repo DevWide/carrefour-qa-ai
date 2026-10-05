@@ -3,6 +3,9 @@ import Navigation from './components/Navigation.js';
 import { el, loc } from '../support/locators.js';
 import { wait } from '../support/wait.js';
 
+/** Cards do carrossel do native-demo-app v2.2.0, na ordem. */
+const CARD_TITLES = ['FULLY OPEN SOURCE', 'GREAT COMMUNITY', 'JS.FOUNDATION', 'SUPPORT VIDEOS', 'EXTENDABLE', 'COMPATIBLE'];
+
 class SwipeScreen extends Screen {
   constructor() {
     super('swipe.screen');
@@ -30,12 +33,16 @@ class SwipeScreen extends Screen {
    *     no 1º card), enquanto no Pixel 8 da mesma execução passou. Solução: conferir se o card mudou e,
    *     se não mudou, repetir com um arrasto mais lento (W3C actions). Pular um card a mais não é risco:
    *     o swipeUntilCard confere o título a cada volta e o último card é o alvo.
+   * 5ª (BrowserStack, os dois aparelhos): a 1ª versão da conferência comparava a POSIÇÃO dos cards — no Android
+   *     o card atual fica sempre no mesmo lugar, então "parecia" não ter andado (evidência: já estava no 2º card).
+   *     E o arrasto W3C quebrava no BrowserStack: o WebdriverIO libera as ações com DELETE /actions, que o
+   *     servidor de lá não aceita. Agora a conferência usa os TÍTULOS visíveis e o arrasto não chama o DELETE.
    */
   async swipeLeft() {
-    const antes = await this.carouselPosition();
+    const antes = await this.visibleTitles();
     await this.nativeSwipe(await this.visibleCard());
     await driver.pause(wait(700)); // espera o "snap" do carrossel terminar antes de ler a tela
-    if ((await this.carouselPosition()) !== antes) return;
+    if ((await this.visibleTitles()) !== antes) return;
 
     await this.dragSwipe(await this.visibleCard());
     await driver.pause(wait(700));
@@ -71,21 +78,20 @@ class SwipeScreen extends Screen {
       .move({ duration: 600, x: Math.round(x + width * 0.1), y: meioY })
       .pause(150)
       .up()
-      .perform();
+      .perform(true); // true = não chama DELETE /actions depois (o BrowserStack responde 404 e o teste quebrava)
   }
 
   /**
-   * "Retrato" da posição do carrossel: a posição horizontal de cada card na tela.
-   * Se o carrossel andou, o retrato muda (não depende de ids de elemento, que variam entre drivers).
+   * Títulos de card visíveis agora (o atual e o que aparece na beirada). Se o carrossel andou, a lista muda.
+   * No iOS os cards fora da tela continuam na hierarquia, mas com "visible=false" — por isso isDisplayed.
    */
-  async carouselPosition() {
-    const xs = [];
-    for (const card of await $$(loc('swipe.card'))) {
+  async visibleTitles() {
+    const visiveis = [];
+    for (const titulo of CARD_TITLES) {
       // eslint-disable-next-line no-await-in-loop
-      const r = await driver.getElementRect(await card.elementId).catch(() => null);
-      if (r) xs.push(Math.round(r.x));
+      if (await this.cardTitle(titulo).isDisplayed().catch(() => false)) visiveis.push(titulo);
     }
-    return xs.join(',');
+    return visiveis.join(' | ');
   }
 
   /** Primeiro card do carrossel que está de fato na tela. */
