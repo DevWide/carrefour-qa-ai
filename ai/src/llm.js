@@ -13,19 +13,18 @@ dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)),
  * 1. Degradação graciosa: sem chave de API os scripts continuam funcionando (modo heurístico).
  * 2. Saída estruturada: toda resposta precisa respeitar um JSON Schema, validado com AJV — nada de texto livre.
  * 3. Nunca fica no caminho da asserção: a IA gera, sugere e analisa; quem decide pass/fail é o teste determinístico.
- * 4. Troca de fornecedor sem mexer nos scripts: AI_PROVIDER=gemini|anthropic (ou detecção pela chave presente).
+ * 4. Troca de fornecedor sem mexer nos scripts: AI_PROVIDER=openai|gemini|anthropic (ou detecção pela chave presente).
  */
-const DEFAULT_MODELS = { gemini: 'gemini-2.5-flash', anthropic: 'claude-sonnet-5-5' };
+const DEFAULT_MODELS = { openai: 'gpt-4o-mini', gemini: 'gemini-2.5-flash', anthropic: 'claude-sonnet-5-5' };
+const KEYS = { openai: 'OPENAI_API_KEY', gemini: 'GEMINI_API_KEY', anthropic: 'ANTHROPIC_API_KEY' };
 
 export const PROVIDER =
-  process.env.AI_PROVIDER || (process.env.GEMINI_API_KEY ? 'gemini' : process.env.ANTHROPIC_API_KEY ? 'anthropic' : 'none');
+  process.env.AI_PROVIDER || Object.keys(KEYS).find((p) => process.env[KEYS[p]]) || 'none';
 export const MODEL = process.env.AI_MODEL || DEFAULT_MODELS[PROVIDER] || 'n/d';
 
 export function isEnabled() {
   if (process.env.AI_DISABLED === 'true') return false;
-  if (PROVIDER === 'gemini') return Boolean(process.env.GEMINI_API_KEY);
-  if (PROVIDER === 'anthropic') return Boolean(process.env.ANTHROPIC_API_KEY);
-  return false;
+  return Boolean(KEYS[PROVIDER] && process.env[KEYS[PROVIDER]]);
 }
 
 const ajv = new Ajv({ allErrors: true, strict: false });
@@ -39,7 +38,7 @@ const ajv = new Ajv({ allErrors: true, strict: false });
  * @param {object} opts.schema    JSON Schema da saída
  */
 export async function structuredCall(opts) {
-  const call = PROVIDER === 'gemini' ? callGemini : callAnthropic;
+  const call = { openai: callOpenAI, gemini: callGemini, anthropic: callAnthropic }[PROVIDER];
   const validate = ajv.compile(opts.schema);
 
   // Até 2 tentativas: se a saída não respeitar o schema, o erro de validação volta para o modelo corrigir.
@@ -53,6 +52,60 @@ export async function structuredCall(opts) {
   throw new Error(`A saída do modelo não respeitou o schema "${opts.toolName}": ${feedback}`);
 }
 
+// ------------------------------------------------------------------ OpenAI
+let openai;
+async function callOpenAI({ system, content, toolName, schema, maxTokens = 8000, feedback }) {
+  const { default: OpenAI } = await import('openai');
+  openai ??= new OpenAI();
+
+  const parts = content.map((b) =>
+    b.type === 'image'
+      ? { type: 'image_url', image_url: { url: `data:${b.source.media_type};base64,${b.source.data}` } }
+      : { type: 'text', text: b.text },
+  );
+  parts.push({ type: 'text', text: schemaInstruction(toolName, schema, feedback) });
+
+  let response;
+  try {
+    response = await openai.chat.completions.create({
+      model: MODEL,
+      max_tokens: maxTokens,
+      temperature: 0.2,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: parts },
+      ],
+    });
+  } catch (err) {
+    throw new Error(modelHint(err));
+  }
+  const u = response.usage ?? {};
+  return { data: parseJson(response.choices[0]?.message?.content), usage: { input: u.prompt_tokens ?? 0, output: u.completion_tokens ?? 0, model: response.model } };
+}
+
+function schemaInstruction(toolName, schema, feedback) {
+  return (
+    `Responda APENAS com um objeto JSON (saída "${toolName}") que respeite exatamente este JSON Schema:\n${JSON.stringify(schema)}` +
+    (feedback ? `\n\nSua resposta anterior foi rejeitada pela validação: ${feedback}. Corrija.` : '')
+  );
+}
+
+function parseJson(raw) {
+  try {
+    return JSON.parse(String(raw ?? '').replace(/^```(?:json)?\s*|\s*```$/g, ''));
+  } catch {
+    return null; // cai na revalidação e o modelo recebe o feedback
+  }
+}
+
+function modelHint(err) {
+  if (/model.*(not found|does not exist)|404/i.test(err.message)) {
+    return `Modelo "${MODEL}" não disponível para esta chave (${PROVIDER}). Defina AI_MODEL no .env com um modelo disponível. Detalhe: ${err.message}`;
+  }
+  return err.message;
+}
+
 // ------------------------------------------------------------------ Gemini (Google)
 let gemini;
 async function callGemini({ system, content, toolName, schema, maxTokens = 8000, feedback }) {
@@ -62,12 +115,7 @@ async function callGemini({ system, content, toolName, schema, maxTokens = 8000,
   const parts = content.map((b) =>
     b.type === 'image' ? { inlineData: { mimeType: b.source.media_type, data: b.source.data } } : { text: b.text },
   );
-  parts.push({
-    text:
-      `Responda APENAS com um objeto JSON (saída "${toolName}") que respeite exatamente este JSON Schema:\n` +
-      `${JSON.stringify(schema)}` +
-      (feedback ? `\n\nSua resposta anterior foi rejeitada pela validação: ${feedback}. Corrija.` : ''),
-  });
+  parts.push({ text: schemaInstruction(toolName, schema, feedback) });
 
   let response;
   try {
@@ -77,21 +125,10 @@ async function callGemini({ system, content, toolName, schema, maxTokens = 8000,
       config: { systemInstruction: system, responseMimeType: 'application/json', maxOutputTokens: maxTokens, temperature: 0.2 },
     });
   } catch (err) {
-    if (/not found|404/i.test(err.message)) {
-      throw new Error(`Modelo "${MODEL}" não disponível para esta chave. Defina AI_MODEL no .env com um modelo Gemini disponível (ex.: o "flash" mais recente). Detalhe: ${err.message}`);
-    }
-    throw err;
-  }
-
-  const raw = (response.text ?? '').replace(/^```(?:json)?\s*|\s*```$/g, '');
-  let data;
-  try {
-    data = JSON.parse(raw);
-  } catch {
-    data = null; // cai na revalidação e o modelo recebe o feedback
+    throw new Error(modelHint(err));
   }
   const u = response.usageMetadata ?? {};
-  return { data, usage: { input: u.promptTokenCount ?? 0, output: u.candidatesTokenCount ?? 0, model: MODEL } };
+  return { data: parseJson(response.text), usage: { input: u.promptTokenCount ?? 0, output: u.candidatesTokenCount ?? 0, model: MODEL } };
 }
 
 // ------------------------------------------------------------------ Claude (Anthropic)
