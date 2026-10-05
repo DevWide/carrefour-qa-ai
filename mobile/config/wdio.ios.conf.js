@@ -45,6 +45,9 @@ export const config = {
       platformName: 'iOS',
       'appium:automationName': 'XCUITest',
       'appium:deviceName': simulator.name,
+      // No CI o simulador é ligado numa etapa anterior (xcrun simctl bootstatus) e o UDID vem por variável.
+      ...(process.env.IOS_UDID && { 'appium:udid': process.env.IOS_UDID }),
+      'appium:simulatorStartupTimeout': 300000,
       ...(simulator.version && { 'appium:platformVersion': simulator.version }),
       'appium:app': process.env.IOS_APP_PATH || APPS.ios,
       'appium:newCommandTimeout': 240,

@@ -29,13 +29,30 @@ class FormsScreen extends Screen {
   }
 
   async selectDropdown(optionText) {
-    await el('forms.dropdown').click();
     if (driver.isIOS) {
+      await this.openIosPicker();
       await el('forms.dropdownOption').setValue(optionText); // PickerWheel aceita o texto da opção
       await el('forms.dropdownDone').click();
     } else {
+      await el('forms.dropdown').click();
       await el('forms.dropdownOption', { text: optionText }).click();
     }
+  }
+
+  /**
+   * No iOS o toque no container "Dropdown" (accessible=false) não abre o seletor — evidência da 1ª execução
+   * no simulador do CI. Tenta a setinha (dropdown-chevron); se a roda não aparecer, toca no centro do campo.
+   */
+  async openIosPicker() {
+    const wheel = el('forms.dropdownOption');
+    await el('forms.dropdownChevron').click();
+    if (await wheel.waitForDisplayed({ timeout: 3000 }).catch(() => false)) return;
+
+    const field = el('forms.dropdown');
+    const { x, y } = await field.getLocation();
+    const { width, height } = await field.getSize();
+    await driver.execute('mobile: tap', { x: Math.round(x + width / 2), y: Math.round(y + height / 2) });
+    await wheel.waitForDisplayed({ timeout: 5000, timeoutMsg: 'Seletor do dropdown não abriu no iOS [locator:forms.dropdownOption]' });
   }
 
   async dropdownValue() {

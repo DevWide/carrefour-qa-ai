@@ -15,7 +15,7 @@ Automação de testes de **API** e **Mobile** com uma **camada de IA** aplicada 
 |---|---|---|
 | API | ServeRest local, Node.js 22 | **54/54** ✅ (3 casos gerados por IA e revisados por mim), mais 5 divergências conhecidas que falham por design (seção 3) |
 | Mobile · Android | Emulador Pixel 7, Android 14 (API 34), macOS | **13/13** ✅: os 10 cenários, com o CT03 rodando 4 conjuntos de dados, em 2 min 10 s |
-| Mobile · iOS | Simulador (Xcode) | Configuração e seletores prontos; validação em andamento. No pipeline o job roda e publica evidências, mas não bloqueia |
+| Mobile · iOS | Simulador iPhone 17 Pro, iOS 26.5, macOS | **13/13** ✅: os mesmos 10 cenários. No pipeline (simulador do GitHub) o job ainda roda sem bloquear, até a validação lá |
 | Camada de IA | Testes unitários (`node --test`) | **7/7** ✅ |
 | Geração de casos com IA | OpenAI `gpt-4o-mini`, execução real | 9 casos propostos: 3 aprovados, 1 bug provável (KI-05) e 5 rejeitados com justificativa. Detalhes em [docs/evidencias/geracao-ia-openai.md](docs/evidencias/geracao-ia-openai.md) |
 

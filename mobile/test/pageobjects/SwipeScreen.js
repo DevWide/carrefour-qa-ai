@@ -1,6 +1,6 @@
 import Screen from './Screen.js';
 import Navigation from './components/Navigation.js';
-import { el } from '../support/locators.js';
+import { el, loc } from '../support/locators.js';
 
 class SwipeScreen extends Screen {
   constructor() {
@@ -23,10 +23,11 @@ class SwipeScreen extends Screen {
    * 1ª: gesto a 45% da altura da tela passava ACIMA do carrossel — nada acontecia.
    * 2ª: W3C actions na altura do card moviam só o 1º card; o carrossel (reanimated + gesture-handler)
    *     ignorava os gestos seguintes. Solução: gesto nativo de cada plataforma sobre a área do card.
+   * 3ª (iOS no CI): o iOS mantém todos os cards na hierarquia, inclusive os que já saíram da tela;
+   *     pegar "o primeiro card" escolhia um card invisível. Solução: usar o primeiro card visível.
    */
   async swipeLeft() {
-    const card = el('swipe.card');
-    await card.waitForDisplayed();
+    const card = await this.visibleCard();
     const { x, y } = await card.getLocation();
     const { width, height } = await card.getSize();
 
@@ -43,6 +44,17 @@ class SwipeScreen extends Screen {
       });
     }
     await driver.pause(700); // espera o "snap" do carrossel terminar antes de ler a tela
+  }
+
+  /** Primeiro card do carrossel que está de fato na tela. */
+  async visibleCard() {
+    await el('swipe.card').waitForExist();
+    const cards = await $$(loc('swipe.card'));
+    for (const card of cards) {
+      // eslint-disable-next-line no-await-in-loop
+      if (await card.isDisplayed()) return card;
+    }
+    throw new Error('Nenhum card visível no carrossel [locator:swipe.card]');
   }
 
   /** Faz swipe até o card com o título informado ficar visível (máx. `maxSwipes`). */

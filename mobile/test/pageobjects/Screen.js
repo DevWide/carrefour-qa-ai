@@ -29,9 +29,29 @@ export default class Screen {
     if (await driver.isKeyboardShown()) await driver.hideKeyboard();
   }
 
+  /**
+   * Digita no campo e, no iOS, confere o que o campo realmente recebeu.
+   * Evidência do simulador iOS: no cadastro, o campo de senha (secure) ficou com 1 caractere em vez de 10 —
+   * campos de senha do iOS podem apagar o conteúdo ao receber o foco de novo. Se não bater, digita outra vez (até 2x).
+   */
   async type(element, value) {
     await element.waitForDisplayed();
-    await element.clearValue();
-    if (value !== '') await element.setValue(value);
+    for (let tentativa = 1; tentativa <= 3; tentativa += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await element.clearValue();
+      // eslint-disable-next-line no-await-in-loop
+      if (value !== '') await element.setValue(value);
+      // eslint-disable-next-line no-await-in-loop
+      if (!driver.isIOS || (await this.typedCorrectly(element, value))) return;
+    }
+    throw new Error(`O campo não recebeu o valor completo após 3 tentativas (esperados ${value.length} caracteres)`);
+  }
+
+  async typedCorrectly(element, value) {
+    const atual = (await element.getAttribute('value').catch(() => null)) ?? '';
+    const tipo = await element.getAttribute('type').catch(() => '');
+    if (value === '') return true; // campo vazio no iOS devolve o placeholder: nada a conferir
+    if (String(tipo).includes('Secure')) return [...atual].length === [...value].length; // senha: compara a quantidade de "•"
+    return atual === value;
   }
 }

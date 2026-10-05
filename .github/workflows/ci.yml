@@ -197,6 +197,21 @@ jobs:
           npm ci --prefix ai
           cd mobile && npm run apps:download -- ios
 
+      # O 1º pipeline falhou porque o simulador não terminou de ligar em 2 min dentro do teste.
+      # Ligamos o iPhone antes e passamos o UDID para o Appium.
+      - name: Ligar o simulador antes dos testes
+        run: |
+          UDID=$(xcrun simctl list devices available -j | node -e '
+            let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{
+              const devs=Object.entries(JSON.parse(s).devices).filter(([r])=>r.includes("iOS"))
+                .flatMap(([r,l])=>l.filter(d=>d.name.startsWith("iPhone")).map(d=>({...d,v:r})))
+                .sort((a,b)=>b.v.localeCompare(a.v,undefined,{numeric:true}));
+              console.log(devs[0].udid);
+            })')
+          echo "Simulador: $UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          echo "IOS_UDID=$UDID" >> "$GITHUB_ENV"
+
       - name: Executar suíte no simulador
         working-directory: mobile
         run: npm run test:ios
