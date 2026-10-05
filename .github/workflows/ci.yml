@@ -277,9 +277,6 @@ jobs:
       ) }}
     runs-on: macos-latest
     timeout-minutes: 60
-    # Validação do iOS ainda em andamento (ver "Resultados" no README): o job roda e publica evidências,
-    # mas não bloqueia o pipeline enquanto os seletores específicos do iOS não forem confirmados.
-    continue-on-error: true
     env:
       WAIT_FACTOR: '2'
       # Sem nova tentativa no iOS: a 1ª execução mostrou falha determinística (CT02); repetir só gastava ~5 min

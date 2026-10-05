@@ -14,10 +14,12 @@ Automação de testes de **API** e **Mobile** com uma **camada de IA** aplicada 
 | Suíte | Ambiente | Resultado |
 |---|---|---|
 | API | ServeRest local, Node.js 22 | **54/54** ✅ (3 casos gerados por IA e revisados por mim), mais 5 divergências conhecidas que falham por design (seção 3) |
-| Mobile · Android | Emulador Pixel 7, Android 14 (API 34), macOS | **13/13** ✅: os 10 cenários, com o CT03 rodando 4 conjuntos de dados, em 2 min 10 s |
-| Mobile · iOS | Simulador iPhone 17 Pro, iOS 26.5, macOS | **13/13** ✅: os mesmos 10 cenários. No pipeline (simulador do GitHub) o job ainda roda sem bloquear, até a validação lá |
+| Mobile · Android | Emulador Pixel 7: Android 14 (API 34) no Mac, Android 12 (API 31) no pipeline | **13/13** ✅ nos dois: os 10 cenários, com o CT03 rodando 4 conjuntos de dados (2 min 10 s no Mac) |
+| Mobile · iOS | Simulador iPhone 17 Pro, iOS 26.5 (Mac e GitHub Actions) | **13/13** ✅: os mesmos 10 cenários, no Mac e no pipeline. No iOS 27 os campos de senha do cadastro ainda se comportam diferente (ficam com 1 caractere); a validação oficial é no 26.5, a mesma versão do runner do GitHub |
 | Camada de IA | Testes unitários (`node --test`) | **7/7** ✅ |
 | Geração de casos com IA | OpenAI `gpt-4o-mini`, execução real | 9 casos propostos: 3 aprovados, 1 bug provável (KI-05) e 5 rejeitados com justificativa. Detalhes em [docs/evidencias/geracao-ia-openai.md](docs/evidencias/geracao-ia-openai.md) |
+
+**Pipeline:** com a suíte mobile completa (Android + iOS em paralelo), a execução inteira leva cerca de 8 min. O job do iOS caiu de ~22 min para ~7,5 min depois das otimizações da seção 5.
 
 Os screenshots da execução Android estão em [docs/evidencias/android](docs/evidencias/android). Também está documentado o caso real do self-healing, que diagnosticou "tela errada" na primeira execução: [docs/evidencias/self-heal-1a-execucao.md](docs/evidencias/self-heal-1a-execucao.md).
 
@@ -183,7 +185,7 @@ No CI, as esperas dos testes mobile dobram (`WAIT_FACTOR=2`). No Android, cada a
 | IA · testes unitários | Testa a própria camada de IA |
 | API · ServeRest | Sobe o ServeRest **local no runner** (isolado e sem depender do serverest.dev), roda a suíte e as divergências (não bloqueantes), gera o Allure e a triagem por IA |
 | Mobile · Android | Emulador Pixel 7 / Android 12 (API 31, mais leve no emulador por software), 4 núcleos e 4 GB (`android-emulator-runner`), Allure, triagem e self-healing |
-| Mobile · iOS | Simulador em `macos-latest`, Allure, triagem e self-healing |
+| Mobile · iOS | Simulador em `macos-latest` (iOS 26.5), WebDriverAgent pré-compilado, Allure, triagem e self-healing |
 | BrowserStack | Execução manual (*Run workflow*) em dispositivos reais |
 | Gerar casos com IA | Execução manual: gera os casos e publica o JSON como artefato para revisão. **Nunca commita sozinho** |
 
