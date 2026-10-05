@@ -6,7 +6,7 @@
  * (mensagem, stack, logs de request/response, screenshots) e gera uma triagem:
  * categoria da causa, confiança, evidência e próxima ação.
  *
- * - Com ANTHROPIC_API_KEY: triagem pelo LLM (multimodal — screenshots do mobile vão como imagem).
+ * - Com chave de IA (Gemini ou Claude): triagem pelo LLM (multimodal — screenshots do mobile vão como imagem).
  * - Sem chave: triagem heurística por regras, para o relatório nunca ficar vazio.
  *
  * Saídas: <out>/ai-triage.md, <out>/ai-triage.json e, no GitHub Actions, o Job Summary.
@@ -15,7 +15,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { isEnabled, structuredCall, text, image, MODEL } from './src/llm.js';
+import { isEnabled, structuredCall, text, image, MODEL, PROVIDER } from './src/llm.js';
 
 const arg = (name, def) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -197,7 +197,7 @@ async function main() {
       const { data, usage } = await triagemIA(paraIA);
       itens = [...itens, ...data.itens];
       resumo = data.resumo;
-      modo = `IA (${MODEL}, ${usage.input}+${usage.output} tokens)`;
+      modo = `IA (${PROVIDER} · ${MODEL}, ${usage.input}+${usage.output} tokens)`;
     } catch (err) {
       console.warn(`⚠️  Falha na chamada ao LLM (${err.message}). Usando triagem heurística.`);
     }

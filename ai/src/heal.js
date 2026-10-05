@@ -68,7 +68,7 @@ export function sugestaoHeuristica({ seletorAtual, xml, platform, telaEsperada }
     }
   }
   if (!seletorAtual.startsWith('~')) {
-    return { diagnostico: 'nao-suportado', justificativa: 'Heurística offline só trata accessibility id. Configure ANTHROPIC_API_KEY para os demais.' };
+    return { diagnostico: 'nao-suportado', justificativa: 'Heurística offline só trata accessibility id. Configure uma chave de IA (GEMINI_API_KEY ou ANTHROPIC_API_KEY) para os demais.' };
   }
   const alvo = seletorAtual.slice(1);
   const attrA11y = platform === 'ios' ? 'name' : 'content-desc';

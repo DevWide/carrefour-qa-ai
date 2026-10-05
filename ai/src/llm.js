@@ -1,53 +1,122 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
-import Anthropic from '@anthropic-ai/sdk';
+import Ajv from 'ajv';
 
 // .env na raiz do monorepo (opcional)
 dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.env'), quiet: true });
 
 /**
- * Wrapper único do LLM usado pela camada de IA.
+ * Wrapper único do LLM usado pela camada de IA — independente de fornecedor.
  *
  * Princípios:
- * 1. Degradação graciosa: sem ANTHROPIC_API_KEY os scripts continuam funcionando (modo heurístico).
- * 2. Saída estruturada: toda resposta é forçada a um JSON Schema via tool use — nada de parsear texto livre.
+ * 1. Degradação graciosa: sem chave de API os scripts continuam funcionando (modo heurístico).
+ * 2. Saída estruturada: toda resposta precisa respeitar um JSON Schema, validado com AJV — nada de texto livre.
  * 3. Nunca fica no caminho da asserção: a IA gera, sugere e analisa; quem decide pass/fail é o teste determinístico.
+ * 4. Troca de fornecedor sem mexer nos scripts: AI_PROVIDER=gemini|anthropic (ou detecção pela chave presente).
  */
-export const MODEL = process.env.AI_MODEL || 'claude-sonnet-5-5';
+const DEFAULT_MODELS = { gemini: 'gemini-2.5-flash', anthropic: 'claude-sonnet-5-5' };
+
+export const PROVIDER =
+  process.env.AI_PROVIDER || (process.env.GEMINI_API_KEY ? 'gemini' : process.env.ANTHROPIC_API_KEY ? 'anthropic' : 'none');
+export const MODEL = process.env.AI_MODEL || DEFAULT_MODELS[PROVIDER] || 'n/d';
 
 export function isEnabled() {
-  return Boolean(process.env.ANTHROPIC_API_KEY) && process.env.AI_DISABLED !== 'true';
+  if (process.env.AI_DISABLED === 'true') return false;
+  if (PROVIDER === 'gemini') return Boolean(process.env.GEMINI_API_KEY);
+  if (PROVIDER === 'anthropic') return Boolean(process.env.ANTHROPIC_API_KEY);
+  return false;
 }
 
-let client;
-function getClient() {
-  client ??= new Anthropic();
-  return client;
-}
+const ajv = new Ajv({ allErrors: true, strict: false });
 
 /**
  * Chama o modelo e devolve um objeto que respeita `schema`.
  * @param {object} opts
  * @param {string} opts.system    instruções de sistema (versionadas em ai/prompts)
- * @param {Array}  opts.content   blocos de conteúdo do usuário (texto e/ou imagem)
- * @param {string} opts.toolName  nome da "ferramenta" de saída
+ * @param {Array}  opts.content   blocos de conteúdo do usuário: text(...) e/ou image(...)
+ * @param {string} opts.toolName  nome da saída estruturada
  * @param {object} opts.schema    JSON Schema da saída
  */
-export async function structuredCall({ system, content, toolName, schema, maxTokens = 8000 }) {
-  const response = await getClient().messages.create({
+export async function structuredCall(opts) {
+  const call = PROVIDER === 'gemini' ? callGemini : callAnthropic;
+  const validate = ajv.compile(opts.schema);
+
+  // Até 2 tentativas: se a saída não respeitar o schema, o erro de validação volta para o modelo corrigir.
+  let feedback = null;
+  for (let tentativa = 1; tentativa <= 2; tentativa += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const result = await call({ ...opts, feedback });
+    if (validate(result.data)) return result;
+    feedback = ajv.errorsText(validate.errors);
+  }
+  throw new Error(`A saída do modelo não respeitou o schema "${opts.toolName}": ${feedback}`);
+}
+
+// ------------------------------------------------------------------ Gemini (Google)
+let gemini;
+async function callGemini({ system, content, toolName, schema, maxTokens = 8000, feedback }) {
+  const { GoogleGenAI } = await import('@google/genai');
+  gemini ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+  const parts = content.map((b) =>
+    b.type === 'image' ? { inlineData: { mimeType: b.source.media_type, data: b.source.data } } : { text: b.text },
+  );
+  parts.push({
+    text:
+      `Responda APENAS com um objeto JSON (saída "${toolName}") que respeite exatamente este JSON Schema:\n` +
+      `${JSON.stringify(schema)}` +
+      (feedback ? `\n\nSua resposta anterior foi rejeitada pela validação: ${feedback}. Corrija.` : ''),
+  });
+
+  let response;
+  try {
+    response = await gemini.models.generateContent({
+      model: MODEL,
+      contents: [{ role: 'user', parts }],
+      config: { systemInstruction: system, responseMimeType: 'application/json', maxOutputTokens: maxTokens, temperature: 0.2 },
+    });
+  } catch (err) {
+    if (/not found|404/i.test(err.message)) {
+      throw new Error(`Modelo "${MODEL}" não disponível para esta chave. Defina AI_MODEL no .env com um modelo Gemini disponível (ex.: o "flash" mais recente). Detalhe: ${err.message}`);
+    }
+    throw err;
+  }
+
+  const raw = (response.text ?? '').replace(/^```(?:json)?\s*|\s*```$/g, '');
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    data = null; // cai na revalidação e o modelo recebe o feedback
+  }
+  const u = response.usageMetadata ?? {};
+  return { data, usage: { input: u.promptTokenCount ?? 0, output: u.candidatesTokenCount ?? 0, model: MODEL } };
+}
+
+// ------------------------------------------------------------------ Claude (Anthropic)
+let anthropic;
+async function callAnthropic({ system, content, toolName, schema, maxTokens = 8000, feedback }) {
+  const { default: Anthropic } = await import('@anthropic-ai/sdk');
+  anthropic ??= new Anthropic();
+
+  const response = await anthropic.messages.create({
     model: MODEL,
     max_tokens: maxTokens,
     system,
     tools: [{ name: toolName, description: 'Registra a resposta estruturada.', input_schema: schema }],
     tool_choice: { type: 'tool', name: toolName },
-    messages: [{ role: 'user', content }],
+    messages: [
+      {
+        role: 'user',
+        content: feedback ? [...content, text(`Sua resposta anterior foi rejeitada pela validação: ${feedback}. Corrija.`)] : content,
+      },
+    ],
   });
 
   const block = response.content.find((b) => b.type === 'tool_use');
-  if (!block) throw new Error(`O modelo não retornou a saída estruturada "${toolName}".`);
   return {
-    data: block.input,
+    data: block?.input ?? null,
     usage: { input: response.usage.input_tokens, output: response.usage.output_tokens, model: response.model },
   };
 }

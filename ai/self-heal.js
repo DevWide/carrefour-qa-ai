@@ -19,7 +19,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isEnabled, structuredCall, text, image, MODEL } from './src/llm.js';
+import { isEnabled, structuredCall, text, image, MODEL, PROVIDER } from './src/llm.js';
 import { summarize, validateSelector } from './src/page-source.js';
 import { extrairSeletor, encontrarChave, sugestaoHeuristica } from './src/heal.js';
 
@@ -68,7 +68,7 @@ async function main() {
   }
   const repo = JSON.parse(fs.readFileSync(LOCATORS, 'utf8'));
   const falhas = fs.readFileSync(falhasFile, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
-  const modo = isEnabled() ? `IA (${MODEL})` : 'heurístico (sem ANTHROPIC_API_KEY)';
+  const modo = isEnabled() ? `IA (${PROVIDER} · ${MODEL})` : 'heurístico (sem chave de IA)';
   console.log(`🩺 Analisando ${falhas.length} falha(s) — modo ${modo}\n`);
 
   const resultados = [];

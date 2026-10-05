@@ -21,7 +21,9 @@ concurrency:
 
 env:
   NODE_VERSION: '22'
-  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }} # opcional: sem ela a camada de IA roda em modo heurístico
+  # Camada de IA (opcional): defina UMA das chaves como secret; sem chave ela roda em modo heurístico
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
 jobs:
   # ------------------------------------------------------------------ IA: testes unitários da própria camada

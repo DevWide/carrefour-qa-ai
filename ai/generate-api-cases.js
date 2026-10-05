@@ -14,7 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isEnabled, structuredCall, text, MODEL } from './src/llm.js';
+import { isEnabled, structuredCall, text, MODEL, PROVIDER } from './src/llm.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const apiDir = path.resolve(here, '../api');
@@ -86,14 +86,14 @@ async function executarOraculo(casos) {
 
 async function main() {
   if (!isEnabled()) {
-    console.log('ℹ️  ANTHROPIC_API_KEY não definida: geração por IA ignorada. A suíte segue com os casos manuais.');
+    console.log('ℹ️  Nenhuma chave de IA (GEMINI_API_KEY ou ANTHROPIC_API_KEY): geração por IA ignorada. A suíte segue com os casos manuais.');
     return;
   }
 
   const existentes = JSON.parse(fs.readFileSync(path.join(apiDir, 'data/cadastro-invalido.json'), 'utf8'));
   const system = fs.readFileSync(path.join(here, 'prompts/generate-api-cases.md'), 'utf8').replace('{{max}}', MAX);
 
-  console.log(`🤖 Gerando até ${MAX} casos com ${MODEL}...`);
+  console.log(`🤖 Gerando até ${MAX} casos com ${PROVIDER} · ${MODEL}...`);
   const { data, usage } = await structuredCall({
     system,
     toolName: 'registrar_casos',

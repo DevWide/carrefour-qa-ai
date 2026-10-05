@@ -6,7 +6,7 @@ Automação de testes de **API** e **Mobile** com uma **camada de IA** aplicada 
 |---|---|
 | API | Node.js · Mocha · Chai · Axios · AJV (contrato) · Allure |
 | Mobile | WebdriverIO v9 · Appium 2 (UiAutomator2 / XCUITest) · Mocha · Chai · Allure · BrowserStack |
-| IA | Claude (Anthropic API) com saída estruturada · validação determinística das respostas |
+| IA | Google Gemini ou Claude (Anthropic), trocáveis por configuração · saída estruturada validada com JSON Schema (AJV) |
 | CI/CD | GitHub Actions (principal) · GitLab CI (equivalente) |
 
 ## Resultados
@@ -79,11 +79,11 @@ flowchart LR
 
 **Por que o self-healing não é automático em tempo de execução?** Se o teste "se curasse" sozinho durante a execução, uma regressão real (um botão que sumiu da tela) passaria como sucesso. Aqui o teste falha, a IA explica e propõe a correção, e uma pessoa decide. Quando a IA conclui `tela-errada` ou `elemento-ausente`, a recomendação é abrir bug, não mexer no teste.
 
-**Funciona sem chave de API.** Sem `ANTHROPIC_API_KEY`, a triagem e o self-healing usam heurísticas (regras e similaridade de texto), e a geração de casos é pulada. O pipeline nunca quebra por causa da IA.
+**Funciona sem chave de API.** Sem `GEMINI_API_KEY` ou `ANTHROPIC_API_KEY`, a triagem e o self-healing usam heurísticas (regras e similaridade de texto), e a geração de casos é pulada. O pipeline nunca quebra por causa da IA.
 
 **Governança:**
 - Prompts versionados em `ai/prompts/`.
-- Modelo configurável por `AI_MODEL`.
+- Fornecedor (`AI_PROVIDER`) e modelo (`AI_MODEL`) configuráveis: a camada é agnóstica ao LLM, com Gemini e Claude implementados.
 - Uso de tokens registrado no relatório.
 - Falhas `@known-issue` não gastam tokens.
 - Senhas mascaradas nos logs anexados.
@@ -170,7 +170,7 @@ App: [native-demo-app](https://github.com/webdriverio/native-demo-app), versão 
 
 Relatórios, evidências e triagens ficam como **artefatos** de cada execução. O `.gitlab-ci.yml` tem os mesmos jobs para GitLab. Como os runners compartilhados do GitLab não têm KVM nem macOS, o mobile lá roda via BrowserStack.
 
-**Secrets** (todos opcionais): `ANTHROPIC_API_KEY`, `BROWSERSTACK_USERNAME`, `BROWSERSTACK_ACCESS_KEY`.
+**Secrets** (todos opcionais): `GEMINI_API_KEY` ou `ANTHROPIC_API_KEY`, `BROWSERSTACK_USERNAME`, `BROWSERSTACK_ACCESS_KEY`.
 
 ## 6. Como executar
 
@@ -206,7 +206,7 @@ npm run report:generate && npm run report:open
 ### Camada de IA
 ```bash
 cd ai && npm ci && npm test
-npm run generate:api         # gera casos de API (requer ANTHROPIC_API_KEY e o ServeRest no ar)
+npm run generate:api         # gera casos de API (requer GEMINI_API_KEY ou ANTHROPIC_API_KEY e o ServeRest no ar)
 npm run analyze:api          # triagem das falhas da API
 npm run analyze:mobile       # triagem das falhas mobile
 npm run heal                 # sugestões de self-healing
