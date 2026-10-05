@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import allure from '@wdio/allure-reporter';
+import { restartApp } from '../support/app.js';
 import LoginScreen from '../pageobjects/LoginScreen.js';
 import NativeAlert from '../pageobjects/components/NativeAlert.js';
 import usuarios from '../data/usuarios.json' with { type: 'json' };
@@ -14,6 +15,7 @@ async function expectValidationMessage(text) {
 describe('Login e Cadastro', () => {
   beforeEach(async () => {
     allure.addFeature('Login / Cadastro');
+    await restartApp();
     await LoginScreen.open();
   });
 

@@ -4,7 +4,7 @@
   "description": "Automação mobile do native-demo-app (WebdriverIO + Appium + Mocha + Chai + Allure)",
   "scripts": {
     "apps:download": "node scripts/download-apps.js",
-    "drivers:install": "appium driver install uiautomator2 || true; appium driver install xcuitest || true",
+    "drivers:install": "echo \"Drivers uiautomator2 e xcuitest já vêm como dependências do projeto (npm install).\"",
     "test:android": "wdio run config/wdio.android.conf.js",
     "test:ios": "wdio run config/wdio.ios.conf.js",
     "test:browserstack": "wdio run config/wdio.browserstack.conf.js",
@@ -24,6 +24,8 @@
     "@wdio/spec-reporter": "^9.32.0",
     "allure": "^3.19.1",
     "appium": "^3.8.0",
+    "appium-uiautomator2-driver": "^8.7.0",
+    "appium-xcuitest-driver": "^12.13.3",
     "chai": "^4.5.0",
     "dotenv": "^18.0.5"
   },

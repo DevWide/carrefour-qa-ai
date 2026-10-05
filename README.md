@@ -9,6 +9,17 @@ Automação de testes de **API** e **Mobile** com uma **camada de IA** aplicada 
 | IA | Claude (Anthropic API) com saída estruturada · validação determinística das respostas |
 | CI/CD | GitHub Actions (principal) · GitLab CI (equivalente) |
 
+## Resultados
+
+| Suíte | Ambiente | Resultado |
+|---|---|---|
+| API | ServeRest local, Node.js 22 | **51/51** ✅, mais 4 divergências conhecidas que falham por design (seção 3) |
+| Mobile · Android | Emulador Pixel 7, Android 14 (API 34), macOS | **13/13** ✅: os 10 cenários, com o CT03 rodando 4 conjuntos de dados, em 2 min 10 s |
+| Mobile · iOS | Simulador (Xcode) | Configuração e seletores prontos; validação em andamento. No pipeline o job roda e publica evidências, mas não bloqueia |
+| Camada de IA | Testes unitários (`node --test`) | **7/7** ✅ |
+
+Os screenshots da execução Android estão em [docs/evidencias/android](docs/evidencias/android). Também está documentado o caso real do self-healing, que diagnosticou "tela errada" na primeira execução: [docs/evidencias/self-heal-1a-execucao.md](docs/evidencias/self-heal-1a-execucao.md).
+
 ---
 
 ## Sumário
@@ -207,6 +218,8 @@ npm run heal -- --apply      # aplica as sugestões validadas em mobile/test/loc
 node self-heal.js --evidence test/fixtures/evidence
 ```
 Nessa fixture, o `testID` do campo de e-mail foi renomeado para `input-login-email`. O script propõe `~input-login-email`, valida no page source e ignora a falha que não é de seletor.
+
+**Caso real:** na primeira execução no emulador, o self-healing diagnosticou `tela-errada` em vez de "consertar" seletores, e isso levou à causa-raiz (ordem dos hooks). Veja [docs/evidencias/self-heal-1a-execucao.md](docs/evidencias/self-heal-1a-execucao.md).
 
 ## 7. Decisões técnicas
 

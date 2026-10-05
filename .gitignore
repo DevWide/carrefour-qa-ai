@@ -13,3 +13,7 @@ api/serverest.log
 
 .env
 .DS_Store
+
+# artefatos locais avulsos
+mobile/evidence.zip
+/package-lock.json

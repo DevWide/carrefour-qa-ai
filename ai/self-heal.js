@@ -96,14 +96,17 @@ async function main() {
       continue;
     }
 
+    // Tela onde o elemento deveria estar (ex.: login.email → login.screen), usada para detectar "tela errada".
+    const telaBruta = repo[`${chave.split('.')[0]}.screen`];
+    const telaEsperada = typeof telaBruta === 'string' ? telaBruta : telaBruta?.[f.plataforma];
     let s;
     try {
       s = isEnabled()
         ? await sugestaoIA({ chave, seletorAtual, platform: f.plataforma, xml, screenshotFile: path.join(EVIDENCE, f.screenshot), teste: f.teste, erro: f.erro })
-        : sugestaoHeuristica({ seletorAtual, xml, platform: f.plataforma });
+        : sugestaoHeuristica({ seletorAtual, xml, platform: f.plataforma, telaEsperada });
     } catch (err) {
       console.warn(`⚠️  LLM indisponível (${err.message}); usando heurística para ${chave}.`);
-      s = sugestaoHeuristica({ seletorAtual, xml, platform: f.plataforma });
+      s = sugestaoHeuristica({ seletorAtual, xml, platform: f.plataforma, telaEsperada });
     }
 
     // 4. Validação determinística: a sugestão precisa existir no page source real.

@@ -51,11 +51,11 @@
     "ios": "-ios predicate string:label == \"{text}\""
   },
   "alert.container": {
-    "android": "id=android:id/parentPanel",
+    "android": "android=new UiSelector().resourceIdMatches(\".*:id/parentPanel\")",
     "ios": "-ios class chain:**/XCUIElementTypeAlert"
   },
   "alert.title": {
-    "android": "id=android:id/alertTitle",
+    "android": "android=new UiSelector().resourceIdMatches(\".*:id/(alert_title|alertTitle)\")",
     "ios": "-ios class chain:**/XCUIElementTypeAlert/**/XCUIElementTypeStaticText[1]"
   },
   "alert.message": {

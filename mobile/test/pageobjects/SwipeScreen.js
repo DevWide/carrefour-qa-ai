@@ -16,11 +16,33 @@ class SwipeScreen extends Screen {
     return el('swipe.cardTitle', { text });
   }
 
-  /** Arrasta o carrossel da direita para a esquerda (próximo card). */
+  /**
+   * Passa o carrossel para o próximo card (gesto da direita para a esquerda), dentro da área do card.
+   *
+   * Histórico (execuções reais no emulador):
+   * 1ª: gesto a 45% da altura da tela passava ACIMA do carrossel — nada acontecia.
+   * 2ª: W3C actions na altura do card moviam só o 1º card; o carrossel (reanimated + gesture-handler)
+   *     ignorava os gestos seguintes. Solução: gesto nativo de cada plataforma sobre a área do card.
+   */
   async swipeLeft() {
-    const { width, height } = await driver.getWindowSize();
-    const y = Math.round(height * 0.45);
-    await driver.swipe({ direction: 'left', duration: 400, percent: 0.8, from: { x: Math.round(width * 0.85), y }, to: { x: Math.round(width * 0.15), y } });
+    const card = el('swipe.card');
+    await card.waitForDisplayed();
+    const { x, y } = await card.getLocation();
+    const { width, height } = await card.getSize();
+
+    if (driver.isIOS) {
+      await driver.execute('mobile: swipe', { direction: 'left', elementId: await card.elementId });
+    } else {
+      await driver.execute('mobile: swipeGesture', {
+        left: Math.round(x + width * 0.1),
+        top: Math.round(y + height * 0.25),
+        width: Math.round(width * 0.8),
+        height: Math.round(height * 0.5),
+        direction: 'left',
+        percent: 0.9,
+      });
+    }
+    await driver.pause(700); // espera o "snap" do carrossel terminar antes de ler a tela
   }
 
   /** Faz swipe até o card com o título informado ficar visível (máx. `maxSwipes`). */

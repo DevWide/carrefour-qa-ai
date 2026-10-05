@@ -72,13 +72,6 @@ export const config = {
     fs.writeFileSync(path.join(root, 'allure-results/environment.properties'), `${props}\n`);
   },
 
-  /** Cada teste começa com o app "limpo": fecha e reabre (sem reinstalar, para ser rápido). */
-  async beforeTest() {
-    const appId = APP_IDS[driver.isIOS ? 'ios' : 'android'];
-    await driver.terminateApp(appId);
-    await driver.activateApp(appId);
-  },
-
   /**
    * Evidências automáticas:
    * - screenshot ao final de TODO teste (SCREENSHOTS=failures para só nas falhas) → Allure + pasta evidence/

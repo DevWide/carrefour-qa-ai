@@ -53,7 +53,20 @@ export const similaridade = (a, b) => {
   return Math.max(edit, contidos === 1 ? 0.8 + edit * 0.2 : edit);
 };
 
-export function sugestaoHeuristica({ seletorAtual, xml, platform }) {
+export function sugestaoHeuristica({ seletorAtual, xml, platform, telaEsperada }) {
+  // 1º: o teste está na tela certa? Se não, NÃO é problema de seletor — não sugerir nada.
+  if (telaEsperada?.startsWith('~')) {
+    const attr = platform === 'ios' ? 'name' : 'content-desc';
+    const ids = identifiers(xml, platform).filter((i) => i.attr === attr).map((i) => i.value);
+    const esperada = telaEsperada.slice(1);
+    if (!ids.includes(esperada)) {
+      const atual = ids.filter((v) => /-screen$/i.test(v)).join(', ') || 'nenhuma tela do app (alerta, launcher ou app fechado?)';
+      return {
+        diagnostico: 'tela-errada',
+        justificativa: `O teste esperava a tela "${esperada}", mas a tela exibida era: ${atual}. O seletor não é o problema — revisar o fluxo/pré-condição do teste.`,
+      };
+    }
+  }
   if (!seletorAtual.startsWith('~')) {
     return { diagnostico: 'nao-suportado', justificativa: 'Heurística offline só trata accessibility id. Configure ANTHROPIC_API_KEY para os demais.' };
   }

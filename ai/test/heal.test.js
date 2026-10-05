@@ -48,3 +48,10 @@ test('resumo do page source mantém identificadores e descarta ruído', () => {
   assert.doesNotMatch(resumo, /package=/);
   assert.ok(resumo.length < xml.length * 0.8, `resumo ${resumo.length} vs xml ${xml.length}`);
 });
+
+test('heurística detecta tela errada em vez de sugerir seletor (caso real da 1ª execução no Mac)', () => {
+  const home = xml.replace('content-desc="Login-screen"', 'content-desc="Home-screen"');
+  const s = sugestaoHeuristica({ seletorAtual: '~button-login-container', xml: home, platform: 'android', telaEsperada: '~Login-screen' });
+  assert.equal(s.diagnostico, 'tela-errada');
+  assert.match(s.justificativa, /Home-screen/);
+});

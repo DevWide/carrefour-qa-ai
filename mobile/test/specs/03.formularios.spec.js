@@ -1,11 +1,13 @@
 import { expect } from 'chai';
 import allure from '@wdio/allure-reporter';
+import { restartApp } from '../support/app.js';
 import FormsScreen from '../pageobjects/FormsScreen.js';
 import NativeAlert from '../pageobjects/components/NativeAlert.js';
 
 describe('Preenchimento de formulários', () => {
   beforeEach(async () => {
     allure.addFeature('Formulários');
+    await restartApp();
     await FormsScreen.open();
   });
 

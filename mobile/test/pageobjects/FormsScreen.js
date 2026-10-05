@@ -44,8 +44,9 @@ class FormsScreen extends Screen {
 
   /** Os botões ficam no fim do formulário: rola até eles antes de interagir. */
   async scrollToButtons() {
-    // No WebdriverIO v9, scrollIntoView() funciona em apps nativos (faz swipes até o elemento aparecer).
-    await this.buttonActive.scrollIntoView({ maxScrolls: 5 });
+    // A tela tem dois ScrollView; o padrão do WebdriverIO pega o primeiro (não rolável).
+    // Por isso informamos o container da própria tela como elemento rolável.
+    await this.buttonActive.scrollIntoView({ scrollableElement: await this.container, maxScrolls: 5 });
     await this.buttonActive.waitForDisplayed();
   }
 }

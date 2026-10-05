@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import allure from '@wdio/allure-reporter';
+import { restartApp } from '../support/app.js';
 import Navigation from '../pageobjects/components/Navigation.js';
 import LoginScreen from '../pageobjects/LoginScreen.js';
 import FormsScreen from '../pageobjects/FormsScreen.js';
@@ -7,8 +8,9 @@ import SwipeScreen from '../pageobjects/SwipeScreen.js';
 import { HomeScreen, DragScreen, PermissionsScreen, DataManagementScreen } from '../pageobjects/SimpleScreens.js';
 
 describe('Navegação entre telas', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     allure.addFeature('Navegação');
+    await restartApp();
   });
 
   it('CT05 @smoke deve navegar por todas as abas da barra inferior', async () => {
