@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: '0 6 * * *' # suíte mobile completa toda noite (03:00 em Brasília)
   workflow_dispatch:
     inputs:
       gerar_casos_ia:
@@ -14,6 +16,10 @@ on:
         description: 'Executar suíte mobile em dispositivos reais (BrowserStack)'
         type: boolean
         default: false
+      mobile_completo:
+        description: 'Rodar a suíte mobile completa (desmarcado = só os cenários @smoke no Android)'
+        type: boolean
+        default: true
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -26,10 +32,48 @@ env:
   GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
   ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
+# Como o pipeline decide o que rodar (para ficar leve e rápido):
+# - Cada job só roda se a sua pasta mudou (job "mudancas"). Mudar só README/docs não roda nada pesado.
+# - Push/PR que mexe no mobile: Android roda só os cenários @smoke (~5-7 min).
+# - Suíte mobile completa (Android + iOS): toda noite, no botão "Run workflow" e em push na main que mexe no mobile.
+# - Noite e "Run workflow" rodam tudo, independente do que mudou.
 jobs:
+  # ------------------------------------------------------------------ O que mudou neste commit/PR
+  mudancas:
+    name: Detectar pastas alteradas
+    # Só faz sentido em push/PR; à noite e no "Run workflow" tudo roda e este job é pulado
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions: { contents: read, pull-requests: read }
+    outputs:
+      api: ${{ steps.filtro.outputs.api }}
+      ai: ${{ steps.filtro.outputs.ai }}
+      mobile: ${{ steps.filtro.outputs.mobile }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filtro
+        with:
+          filters: |
+            pipeline: &pipeline
+              - '.github/workflows/**'
+            ai:
+              - *pipeline
+              - 'ai/**'
+            api:
+              - *pipeline
+              - 'api/**'
+              - 'ai/**'
+            mobile:
+              - *pipeline
+              - 'mobile/**'
+              - 'ai/**'
+
   # ------------------------------------------------------------------ IA: testes unitários da própria camada
   ai-unit:
     name: IA · testes unitários
+    needs: mudancas
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.mudancas.outputs.ai == 'true') }}
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: ai } }
     steps:
@@ -42,6 +86,8 @@ jobs:
   # ------------------------------------------------------------------ API
   api:
     name: API · ServeRest
+    needs: mudancas
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.mudancas.outputs.api == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -118,8 +164,16 @@ jobs:
   # ------------------------------------------------------------------ Mobile · Android (emulador)
   mobile-android:
     name: Mobile · Android (emulador)
+    needs: mudancas
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.mudancas.outputs.mobile == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      # O emulador do CI roda sem GPU: esperas em dobro e 1 nova tentativa por arquivo de spec (só no CI)
+      WAIT_FACTOR: '2'
+      SPEC_RETRIES: '1'
+      # Suíte completa à noite, no "Run workflow" (se marcado) e em push na main; em PR, só @smoke
+      MOCHA_GREP: ${{ !(github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.mobile_completo) || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && '@smoke' || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -138,13 +192,19 @@ jobs:
           npm ci --prefix ai
           cd mobile && npm run apps:download -- android
 
+      - name: Suíte a executar
+        run: 'echo "Cenários - ${MOCHA_GREP:-todos}"'
+
+      # Android 12 (API 31) é bem mais leve que o 14 no emulador por software; 4 núcleos e 4 GB de RAM.
       - name: Executar suíte no emulador
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
+          api-level: 31
           arch: x86_64
           target: google_apis
           profile: pixel_7
+          cores: 4
+          ram-size: 4096M
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           working-directory: mobile
@@ -181,11 +241,22 @@ jobs:
   # ------------------------------------------------------------------ Mobile · iOS (simulador)
   mobile-ios:
     name: Mobile · iOS (simulador)
+    needs: mudancas
+    # Suíte completa só à noite, no "Run workflow" ou em push na main que mexe no mobile (runner macOS é o mais lento)
+    if: >-
+      ${{ !cancelled() && (
+        github.event_name == 'schedule' ||
+        (github.event_name == 'workflow_dispatch' && inputs.mobile_completo) ||
+        (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.mudancas.outputs.mobile == 'true')
+      ) }}
     runs-on: macos-latest
     timeout-minutes: 60
     # Validação do iOS ainda em andamento (ver "Resultados" no README): o job roda e publica evidências,
     # mas não bloqueia o pipeline enquanto os seletores específicos do iOS não forem confirmados.
     continue-on-error: true
+    env:
+      WAIT_FACTOR: '2'
+      SPEC_RETRIES: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

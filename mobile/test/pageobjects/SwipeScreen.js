@@ -1,6 +1,7 @@
 import Screen from './Screen.js';
 import Navigation from './components/Navigation.js';
 import { el, loc } from '../support/locators.js';
+import { wait } from '../support/wait.js';
 
 class SwipeScreen extends Screen {
   constructor() {
@@ -43,7 +44,7 @@ class SwipeScreen extends Screen {
         percent: 0.9,
       });
     }
-    await driver.pause(700); // espera o "snap" do carrossel terminar antes de ler a tela
+    await driver.pause(wait(700)); // espera o "snap" do carrossel terminar antes de ler a tela
   }
 
   /** Primeiro card do carrossel que está de fato na tela. */

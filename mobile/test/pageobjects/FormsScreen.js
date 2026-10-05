@@ -1,6 +1,7 @@
 import Screen from './Screen.js';
 import Navigation from './components/Navigation.js';
 import { el } from '../support/locators.js';
+import { wait } from '../support/wait.js';
 
 class FormsScreen extends Screen {
   constructor() {
@@ -46,13 +47,13 @@ class FormsScreen extends Screen {
   async openIosPicker() {
     const wheel = el('forms.dropdownOption');
     await el('forms.dropdownChevron').click();
-    if (await wheel.waitForDisplayed({ timeout: 3000 }).catch(() => false)) return;
+    if (await wheel.waitForDisplayed({ timeout: wait(3000) }).catch(() => false)) return;
 
     const field = el('forms.dropdown');
     const { x, y } = await field.getLocation();
     const { width, height } = await field.getSize();
     await driver.execute('mobile: tap', { x: Math.round(x + width / 2), y: Math.round(y + height / 2) });
-    await wheel.waitForDisplayed({ timeout: 5000, timeoutMsg: 'Seletor do dropdown não abriu no iOS [locator:forms.dropdownOption]' });
+    await wheel.waitForDisplayed({ timeout: wait(5000), timeoutMsg: 'Seletor do dropdown não abriu no iOS [locator:forms.dropdownOption]' });
   }
 
   async dropdownValue() {

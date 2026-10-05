@@ -1,4 +1,5 @@
 import { el } from '../support/locators.js';
+import { wait } from '../support/wait.js';
 
 /** Base dos Page Objects: esperas explícitas e ações comuns. Nenhum Page Object usa pause() fixo. */
 export default class Screen {
@@ -11,7 +12,7 @@ export default class Screen {
     return el(this.screenKey);
   }
 
-  async waitForDisplayed({ timeout = 15000, reverse = false } = {}) {
+  async waitForDisplayed({ timeout = wait(15000), reverse = false } = {}) {
     await this.container.waitForDisplayed({ timeout, reverse, timeoutMsg: `Tela [locator:${this.screenKey}] não ${reverse ? 'fechou' : 'apareceu'} em ${timeout} ms` });
     return this;
   }

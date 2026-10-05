@@ -1,8 +1,9 @@
 import { el } from '../../support/locators.js';
+import { wait } from '../../support/wait.js';
 
 /** Alerta nativo (Android AlertDialog / iOS UIAlertController). */
 class NativeAlert {
-  async waitForDisplayed(timeout = 10000) {
+  async waitForDisplayed(timeout = wait(10000)) {
     await el('alert.container').waitForDisplayed({ timeout, timeoutMsg: 'Alerta nativo [locator:alert.container] não apareceu' });
   }
 
@@ -16,7 +17,7 @@ class NativeAlert {
    */
   async appearsWithin(ms = 2500) {
     try {
-      await el('alert.container').waitForDisplayed({ timeout: ms });
+      await el('alert.container').waitForDisplayed({ timeout: wait(ms) });
       return true;
     } catch {
       return false;
@@ -33,7 +34,7 @@ class NativeAlert {
 
   async tap(buttonText) {
     await el('alert.button', { text: buttonText }).click();
-    await el('alert.container').waitForDisplayed({ reverse: true, timeout: 5000 });
+    await el('alert.container').waitForDisplayed({ reverse: true, timeout: wait(5000) });
   }
 }
 

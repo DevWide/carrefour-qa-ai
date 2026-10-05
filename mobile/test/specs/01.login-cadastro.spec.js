@@ -5,10 +5,11 @@ import LoginScreen from '../pageobjects/LoginScreen.js';
 import NativeAlert from '../pageobjects/components/NativeAlert.js';
 import usuarios from '../data/usuarios.json' with { type: 'json' };
 import loginInvalido from '../data/login-invalido.json' with { type: 'json' };
+import { wait } from '../support/wait.js';
 
 async function expectValidationMessage(text) {
   const message = LoginScreen.errorMessage(text);
-  await message.waitForDisplayed({ timeout: 5000, timeoutMsg: `Mensagem "${text}" não foi exibida` });
+  await message.waitForDisplayed({ timeout: wait(5000), timeoutMsg: `Mensagem "${text}" não foi exibida` });
   expect(await message.getText()).to.equal(text);
 }
 

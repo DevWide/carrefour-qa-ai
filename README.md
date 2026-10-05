@@ -159,18 +159,30 @@ App: [native-demo-app](https://github.com/webdriverio/native-demo-app), versão 
 
 ## 5. Pipeline CI/CD
 
-`.github/workflows/ci.yml` roda a cada **push** e **pull request**:
+`.github/workflows/ci.yml` roda em **push**, **pull request**, toda **noite** e sob demanda (*Run workflow*).
+
+**Rodar só o necessário.** Um emulador Android no runner do GitHub não tem GPU e é várias vezes mais lento que no Mac, e o simulador iOS precisa de um runner macOS. Por isso o pipeline decide o que rodar:
+
+| Evento | O que roda |
+|---|---|
+| PR | Só os jobs das pastas alteradas (`api/`, `mobile/`, `ai/`). No mobile, apenas os cenários `@smoke` no Android (CT01, CT02, CT05, CT08) |
+| Push na `main` | Só os jobs das pastas alteradas, com a suíte mobile completa (Android + iOS) se `mobile/` ou `ai/` mudou |
+| Toda noite (03:00) e *Run workflow* | Tudo, com a suíte mobile completa |
+| Mudança só em README/docs | Nada pesado |
+
+No CI, as esperas dos testes mobile dobram (`WAIT_FACTOR=2`) e cada arquivo de spec tem 1 nova tentativa (`SPEC_RETRIES=1`). A lógica dos testes não muda; localmente continua tudo como antes.
+
 
 | Job | O que faz |
 |---|---|
 | IA · testes unitários | Testa a própria camada de IA |
 | API · ServeRest | Sobe o ServeRest **local no runner** (isolado e sem depender do serverest.dev), roda a suíte e as divergências (não bloqueantes), gera o Allure e a triagem por IA |
-| Mobile · Android | Emulador Pixel 7 / API 34 (`android-emulator-runner`), Allure, triagem e self-healing |
+| Mobile · Android | Emulador Pixel 7 / Android 12 (API 31, mais leve no emulador por software), 4 núcleos e 4 GB (`android-emulator-runner`), Allure, triagem e self-healing |
 | Mobile · iOS | Simulador em `macos-latest`, Allure, triagem e self-healing |
 | BrowserStack | Execução manual (*Run workflow*) em dispositivos reais |
 | Gerar casos com IA | Execução manual: gera os casos e publica o JSON como artefato para revisão. **Nunca commita sozinho** |
 
-Relatórios, evidências e triagens ficam como **artefatos** de cada execução. O `.gitlab-ci.yml` tem os mesmos jobs para GitLab. Como os runners compartilhados do GitLab não têm KVM nem macOS, o mobile lá roda via BrowserStack.
+Relatórios, evidências e triagens ficam como **artefatos** de cada execução. O `.gitlab-ci.yml` tem os mesmos jobs para GitLab, também filtrados por pasta (`rules: changes`). Como os runners compartilhados do GitLab não têm KVM nem macOS, o mobile lá roda via BrowserStack.
 
 **Secrets** (todos opcionais): `OPENAI_API_KEY`, `GEMINI_API_KEY` ou `ANTHROPIC_API_KEY`, `BROWSERSTACK_USERNAME`, `BROWSERSTACK_ACCESS_KEY`.
 

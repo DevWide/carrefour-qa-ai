@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loc } from './locators.js';
+import { wait } from './wait.js';
 
 const APP_IDS = { android: 'com.wdiodemoapp', ios: 'org.wdiodemoapp' };
 const EVIDENCE_DIR = path.resolve(import.meta.dirname, '../../evidence');
@@ -73,7 +74,7 @@ export async function restartApp() {
       else await driver.hideKeyboard().catch(() => {});
     }
     await $(loc('tabBar.home')).click();
-    await waitForHome(5000);
+    await waitForHome(wait(5000));
     return;
   } catch {
     // segue para o plano B

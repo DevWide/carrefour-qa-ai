@@ -19,6 +19,11 @@ cache:
     files: [api/package-lock.json, ai/package-lock.json, mobile/package-lock.json]
   paths: [.npm/]
 
+# Cada job só roda se a sua pasta mudou (em pipelines agendados, "changes" é sempre verdadeiro: roda tudo).
+.mudou-ai: &mudou-ai [ai/**/*, .gitlab-ci.yml]
+.mudou-api: &mudou-api [api/**/*, ai/**/*, .gitlab-ci.yml]
+.mudou-mobile: &mudou-mobile [mobile/**/*, ai/**/*, .gitlab-ci.yml]
+
 workflow:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -26,11 +31,15 @@ workflow:
 
 ai-unit:
   stage: test
+  rules:
+    - changes: *mudou-ai
   script:
     - cd ai && npm ci && npm test
 
 api:
   stage: test
+  rules:
+    - changes: *mudou-api
   script:
     - npm ci --prefix api && npm ci --prefix ai
     - cd api
@@ -48,6 +57,8 @@ api:
 api-known-issues:
   stage: test
   allow_failure: true # divergências requisito x implementação: visíveis, mas não bloqueiam
+  rules:
+    - changes: *mudou-api
   script:
     - npm ci --prefix api
     - cd api
@@ -59,6 +70,7 @@ mobile-browserstack:
   stage: test
   rules:
     - if: $BROWSERSTACK_USERNAME && $BROWSERSTACK_ACCESS_KEY
+      changes: *mudou-mobile
   script:
     - npm ci --prefix mobile && npm ci --prefix ai
     - cd mobile && npm run apps:download -- android

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import dotenv from 'dotenv';
+import { wait } from '../test/support/wait.js';
 
 const root = path.resolve(import.meta.dirname, '..');
 dotenv.config({ path: path.join(root, '../.env'), quiet: true }); // .env na raiz do monorepo (opcional)
@@ -19,7 +20,7 @@ export const config = {
   maxInstances: 1,
   logLevel: process.env.WDIO_LOG_LEVEL || 'warn',
   outputDir: path.join(root, 'logs'), // logs do WebdriverIO/Appium por worker → artefato do pipeline
-  waitforTimeout: 15000,
+  waitforTimeout: wait(15000), // 15 s local; WAIT_FACTOR=2 no CI
   connectionRetryTimeout: 180000,
   connectionRetryCount: 2,
   specFileRetries: Number(process.env.SPEC_RETRIES || 0),
@@ -28,7 +29,7 @@ export const config = {
   mochaOpts: {
     ui: 'bdd',
     timeout: 180000,
-    grep: process.env.MOCHA_GREP,
+    grep: process.env.MOCHA_GREP || undefined, // ex.: @smoke; vazio = todos os cenários
   },
 
   reporters: [
