@@ -8,6 +8,7 @@ node_modules/
 **/ai-heal/
 mobile/evidence/
 mobile/logs/
+mobile/log/
 mobile/apps/
 api/serverest.log
 
