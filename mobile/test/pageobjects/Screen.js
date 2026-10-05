@@ -43,9 +43,11 @@ export default class Screen {
       // eslint-disable-next-line no-await-in-loop
       if (tentativa > 1) await dismissSystemPrompts(); // um aviso do sistema pode ter coberto o campo
       // eslint-disable-next-line no-await-in-loop
-      await element.clearValue();
+      await element.clearValue(); // foca o campo
       // eslint-disable-next-line no-await-in-loop
-      if (value !== '') await element.setValue(value);
+      await dismissSystemPrompts(); // ao focar uma senha, o iOS pode abrir "Usar Senha Forte?" no lugar do teclado
+      // eslint-disable-next-line no-await-in-loop
+      if (value !== '') await element.addValue(value);
       // eslint-disable-next-line no-await-in-loop
       if (!driver.isIOS || (await this.typedCorrectly(element, value))) return;
     }
