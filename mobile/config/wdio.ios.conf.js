@@ -53,8 +53,10 @@ export const config = {
       'appium:newCommandTimeout': 240,
       'appium:wdaLaunchTimeout': 180000,
       'appium:wdaConnectionTimeout': 180000,
-      // Primeira execução compila o WebDriverAgent (demora ~2-4 min); as seguintes reaproveitam.
+      // Primeira execução compila o WebDriverAgent (demora vários minutos); as seguintes reaproveitam.
       'appium:usePrebuiltWDA': process.env.IOS_PREBUILT_WDA === 'true',
+      // No CI: WebDriverAgent já compilado (baixado das releases do Appium) → pula a compilação no Xcode.
+      ...(process.env.IOS_WDA_PATH && { 'appium:usePreinstalledWDA': true, 'appium:prebuiltWDAPath': process.env.IOS_WDA_PATH }),
       'appium:autoAcceptAlerts': false, // os alertas do app são parte das asserções
     },
   ],

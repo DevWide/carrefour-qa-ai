@@ -170,7 +170,12 @@ App: [native-demo-app](https://github.com/webdriverio/native-demo-app), versão 
 | Toda noite (03:00) e *Run workflow* | Tudo, com a suíte mobile completa |
 | Mudança só em README/docs | Nada pesado |
 
-No CI, as esperas dos testes mobile dobram (`WAIT_FACTOR=2`) e cada arquivo de spec tem 1 nova tentativa (`SPEC_RETRIES=1`). A lógica dos testes não muda; localmente continua tudo como antes.
+No CI, as esperas dos testes mobile dobram (`WAIT_FACTOR=2`). No Android, cada arquivo de spec tem 1 nova tentativa (`SPEC_RETRIES=1`); no iOS não, para uma falha real aparecer logo. A lógica dos testes não muda; localmente continua tudo como antes.
+
+**Onde o tempo do mobile vai.** Na primeira execução completa, os 6 cenários de navegação e formulários no iOS levaram ~1,5 min; o resto do job era preparação. Por isso as otimizações atacam a preparação, não os testes:
+- **iOS:** o WebDriverAgent (a ponte do Appium com o simulador) é baixado já compilado, na mesma versão do driver, em vez de ser compilado no Xcode a cada execução. Se o download falhar, o Appium compila como antes.
+- **Android:** o emulador já ligado fica em cache (snapshot do AVD), e as execuções seguintes voltam dele em vez de dar boot do zero.
+- Paralelizar os arquivos de spec em várias máquinas foi avaliado e descartado por enquanto: cada máquina pagaria de novo o boot e a preparação, que são a maior parte do tempo.
 
 
 | Job | O que faz |

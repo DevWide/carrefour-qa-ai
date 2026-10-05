@@ -195,6 +195,31 @@ jobs:
       - name: Suíte a executar
         run: 'echo "Cenários - ${MOCHA_GREP:-todos}"'
 
+      # Cache do emulador já ligado (snapshot): nas próximas execuções ele volta do snapshot em vez de dar boot do zero.
+      - name: Cache do emulador (AVD)
+        uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-31-pixel7-x86_64-v1
+
+      - name: Criar snapshot do emulador (só quando não há cache)
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 31
+          arch: x86_64
+          target: google_apis
+          profile: pixel_7
+          cores: 4
+          ram-size: 4096M
+          force-avd-creation: false
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: echo "Snapshot do emulador criado para o cache."
+
       # Android 12 (API 31) é bem mais leve que o 14 no emulador por software; 4 núcleos e 4 GB de RAM.
       - name: Executar suíte no emulador
         uses: reactivecircus/android-emulator-runner@v2
@@ -205,8 +230,9 @@ jobs:
           profile: pixel_7
           cores: 4
           ram-size: 4096M
+          force-avd-creation: false
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           working-directory: mobile
           script: npm run test:android
 
@@ -256,7 +282,8 @@ jobs:
     continue-on-error: true
     env:
       WAIT_FACTOR: '2'
-      SPEC_RETRIES: '1'
+      # Sem nova tentativa no iOS: a 1ª execução mostrou falha determinística (CT02); repetir só gastava ~5 min
+      SPEC_RETRIES: '0'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -267,6 +294,21 @@ jobs:
           npm ci --prefix mobile
           npm ci --prefix ai
           cd mobile && npm run apps:download -- ios
+
+      # A maior parte do tempo do iOS não é teste (os 6 cenários de navegação e formulários levam ~1,5 min):
+      # é o Appium compilando o WebDriverAgent no Xcode. Baixamos o WDA já compilado, da mesma versão do driver.
+      # Se o download falhar, o Appium compila como antes (o job não quebra por isso).
+      - name: Baixar WebDriverAgent pré-compilado
+        continue-on-error: true
+        working-directory: mobile
+        run: |
+          VERSAO=$(node -p "require('./node_modules/appium-xcuitest-driver/node_modules/appium-webdriveragent/package.json').version")
+          ARCH=$([ "$(uname -m)" = "arm64" ] && echo arm64 || echo x86_64)
+          curl -fsSL -o "$RUNNER_TEMP/wda.zip" "https://github.com/appium/WebDriverAgent/releases/download/v$VERSAO/WebDriverAgentRunner-Build-Sim-$ARCH.zip"
+          unzip -q "$RUNNER_TEMP/wda.zip" -d "$RUNNER_TEMP/wda"
+          WDA=$(find "$RUNNER_TEMP/wda" -maxdepth 6 -name 'WebDriverAgentRunner-Runner.app' | head -1)
+          echo "WDA: $WDA"
+          [ -n "$WDA" ] && echo "IOS_WDA_PATH=$WDA" >> "$GITHUB_ENV"
 
       # O 1º pipeline falhou porque o simulador não terminou de ligar em 2 min dentro do teste.
       # Ligamos o iPhone antes e passamos o UDID para o Appium.
