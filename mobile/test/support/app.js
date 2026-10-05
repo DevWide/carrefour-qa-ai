@@ -2,22 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { loc } from './locators.js';
 import { wait } from './wait.js';
+import { dismissSystemPrompts } from './system-prompts.js';
 
 const APP_IDS = { android: 'com.wdiodemoapp', ios: 'org.wdiodemoapp' };
 const EVIDENCE_DIR = path.resolve(import.meta.dirname, '../../evidence');
-
-// Avisos do sistema que podem cobrir o app em emuladores lentos (CI): "X isn't responding" → "Wait".
-const SYSTEM_DIALOG_BUTTONS = ['android=new UiSelector().textMatches("(?i)wait|aguardar")', 'android=new UiSelector().textMatches("(?i)close app|fechar app")'];
-
-async function dismissSystemDialogs() {
-  if (driver.isIOS) return;
-  for (const sel of SYSTEM_DIALOG_BUTTONS) {
-    // eslint-disable-next-line no-await-in-loop
-    const btn = await $(sel);
-    // eslint-disable-next-line no-await-in-loop
-    if (await btn.isExisting().catch(() => false)) await btn.click().catch(() => {});
-  }
-}
 
 /** Salva screenshot + page source quando a preparação falha (o afterTest do WDIO não roda em falha de hook). */
 async function saveHookEvidence(name) {
@@ -46,7 +34,7 @@ async function waitForHome(timeout) {
   const home = $(loc('home.screen'));
   await driver.waitUntil(
     async () => {
-      await dismissSystemDialogs();
+      await dismissSystemPrompts();
       return home.isDisplayed().catch(() => false);
     },
     { timeout, interval: 1000 },
@@ -68,6 +56,7 @@ async function waitForHome(timeout) {
  */
 export async function restartApp() {
   try {
+    await dismissSystemPrompts();
     await dismissAppAlert();
     if (await driver.isKeyboardShown().catch(() => false)) {
       if (driver.isIOS) await $(loc('tabBar.home')).click().catch(() => {});

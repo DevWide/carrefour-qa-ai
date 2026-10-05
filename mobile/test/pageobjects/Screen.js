@@ -1,5 +1,6 @@
 import { el } from '../support/locators.js';
 import { wait } from '../support/wait.js';
+import { dismissSystemPrompts } from '../support/system-prompts.js';
 
 /** Base dos Page Objects: esperas explícitas e ações comuns. Nenhum Page Object usa pause() fixo. */
 export default class Screen {
@@ -36,8 +37,11 @@ export default class Screen {
    * campos de senha do iOS podem apagar o conteúdo ao receber o foco de novo. Se não bater, digita outra vez (até 2x).
    */
   async type(element, value) {
+    await dismissSystemPrompts();
     await element.waitForDisplayed();
     for (let tentativa = 1; tentativa <= 3; tentativa += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      if (tentativa > 1) await dismissSystemPrompts(); // um aviso do sistema pode ter coberto o campo
       // eslint-disable-next-line no-await-in-loop
       await element.clearValue();
       // eslint-disable-next-line no-await-in-loop

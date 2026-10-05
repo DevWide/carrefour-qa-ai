@@ -1,6 +1,7 @@
 import Screen from './Screen.js';
 import Navigation from './components/Navigation.js';
 import { el } from '../support/locators.js';
+import { dismissSystemPrompts } from '../support/system-prompts.js';
 
 class LoginScreen extends Screen {
   constructor() {
@@ -17,11 +18,13 @@ class LoginScreen extends Screen {
   }
 
   async switchToLogin() {
+    await dismissSystemPrompts();
     await el('login.tabLogin').click();
     await el('login.submitLogin').waitForDisplayed();
   }
 
   async switchToSignUp() {
+    await dismissSystemPrompts();
     await el('login.tabSignUp').click();
     await this.repeatPassword.waitForDisplayed();
   }
