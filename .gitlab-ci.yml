@@ -14,9 +14,9 @@ default:
 variables:
   npm_config_cache: "$CI_PROJECT_DIR/.npm"
 
+# O GitLab aceita no máximo 2 arquivos em cache:key:files; uma chave fixa basta (o npm ci confere os lockfiles)
 cache:
-  key:
-    files: [api/package-lock.json, ai/package-lock.json, mobile/package-lock.json]
+  key: npm-cache
   paths: [.npm/]
 
 # Cada job só roda se a sua pasta mudou (em pipelines agendados, "changes" é sempre verdadeiro: roda tudo).
@@ -68,6 +68,10 @@ api-known-issues:
 
 mobile-browserstack:
   stage: test
+  variables:
+    # Mesmo ajuste do GitHub Actions: cada comando vai pela internet até o aparelho real
+    WAIT_FACTOR: "2"
+    SPEC_RETRIES: "1"
   rules:
     - if: $BROWSERSTACK_USERNAME && $BROWSERSTACK_ACCESS_KEY
       changes: *mudou-mobile
