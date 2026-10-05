@@ -5,9 +5,9 @@ Automação de testes de **API** e **Mobile** com uma **camada de IA** aplicada 
 | | Stack |
 |---|---|
 | API | Node.js · Mocha · Chai · Axios · AJV (contrato) · Allure |
-| Mobile | WebdriverIO v9 · Appium 2 (UiAutomator2 / XCUITest) · Mocha · Chai · Allure · BrowserStack |
+| Mobile | WebdriverIO v9 · Appium 3 (UiAutomator2 / XCUITest) · Mocha · Chai · Allure · BrowserStack |
 | IA | OpenAI, Google Gemini ou Claude (Anthropic), trocáveis por configuração · saída estruturada validada com JSON Schema (AJV) |
-| CI/CD | GitHub Actions (principal) · GitLab CI (equivalente) |
+| CI/CD | GitHub Actions (API, IA, emulador Android e simulador iOS) · GitLab CI/CD (API, IA e Android em aparelhos reais no BrowserStack) |
 
 ## Resultados
 
@@ -16,6 +16,7 @@ Automação de testes de **API** e **Mobile** com uma **camada de IA** aplicada 
 | API | ServeRest local, Node.js 22 | **54/54** ✅ (3 casos gerados por IA e revisados por mim), mais 5 divergências conhecidas que falham por design (seção 3) |
 | Mobile · Android | Emulador Pixel 7: Android 14 (API 34) no Mac, Android 12 (API 31) no pipeline | **13/13** ✅ nos dois: os 10 cenários, com o CT03 rodando 4 conjuntos de dados (2 min 10 s no Mac) |
 | Mobile · iOS | Simulador iPhone 17 Pro, iOS 26.5 (Mac e GitHub Actions) | **13/13** ✅: os mesmos 10 cenários, no Mac e no pipeline. No iOS 27 os campos de senha do cadastro ainda se comportam diferente (ficam com 1 caractere); a validação oficial é no 26.5, a mesma versão do runner do GitHub |
+| Mobile · Android real | BrowserStack pelo GitLab CI/CD: Samsung Galaxy S23 (Android 13) e Google Pixel 8 (Android 14), em paralelo | **13/13** ✅ nos dois aparelhos |
 | Camada de IA | Testes unitários (`node --test`) | **7/7** ✅ |
 | Geração de casos com IA | OpenAI `gpt-4o-mini`, execução real | 9 casos propostos: 3 aprovados, 1 bug provável (KI-05) e 5 rejeitados com justificativa. Detalhes em [docs/evidencias/geracao-ia-openai.md](docs/evidencias/geracao-ia-openai.md) |
 
@@ -189,7 +190,7 @@ No CI, as esperas dos testes mobile dobram (`WAIT_FACTOR=2`). No Android, cada a
 | BrowserStack | Execução manual (*Run workflow*) em dispositivos reais |
 | Gerar casos com IA | Execução manual: gera os casos e publica o JSON como artefato para revisão. **Nunca commita sozinho** |
 
-Relatórios, evidências e triagens ficam como **artefatos** de cada execução. O `.gitlab-ci.yml` tem os mesmos jobs para GitLab, também filtrados por pasta (`rules: changes`). Como os runners compartilhados do GitLab não têm KVM nem macOS, o mobile lá roda via BrowserStack.
+Relatórios, evidências e triagens ficam como **artefatos** de cada execução. O `.gitlab-ci.yml` roda no GitLab CI/CD, como pede o desafio mobile: o mesmo código está espelhado em [gitlab.com/rafaelsilvabarbosabrbs73/carrefour-qa-ai](https://gitlab.com/rafaelsilvabarbosabrbs73/carrefour-qa-ai). Lá os jobs também são filtrados por pasta (`rules: changes`). Como os runners compartilhados do GitLab não têm KVM nem macOS, o mobile roda em **aparelhos Android reais no BrowserStack** (Galaxy S23 e Pixel 8 em paralelo), com vídeo e logs de cada sessão no painel do BrowserStack. Variáveis no GitLab: `BROWSERSTACK_USERNAME`, `BROWSERSTACK_ACCESS_KEY` e `OPENAI_API_KEY` (mascaradas).
 
 **Secrets** (todos opcionais): `OPENAI_API_KEY`, `GEMINI_API_KEY` ou `ANTHROPIC_API_KEY`, `BROWSERSTACK_USERNAME`, `BROWSERSTACK_ACCESS_KEY`.
 
@@ -251,4 +252,5 @@ Nessa fixture, o `testID` do campo de e-mail foi renomeado para `input-login-ema
 - **Divergências como testes, não como comentários.** Ficam executáveis e visíveis no relatório, sem bloquear o pipeline.
 - **Esperas explícitas, nunca `pause()`.** Para "o alerta não deve aparecer", o teste espera a janela de 2,5 s (o app simula 1,5 s de chamada de API) em vez de checar uma única vez.
 - **Avisos do sistema tratados num lugar só** (`mobile/test/support/system-prompts.js`). São avisos do Android ou do iOS, não do app, que aparecem por cima da tela só em alguns ambientes. Exemplo real: no simulador iOS do GitHub, o "Save Password?" do app Senhas cobria o formulário de login depois de digitar a senha (no Mac não aparecia). Num Mac em português apareceram o "Salvar Senha?" e o "Usar Senha Forte?", que ocupa o lugar do teclado no cadastro. O teste fecha o aviso sempre com a opção neutra ("Not Now"/"Agora Não", o "x", "Wait") e digita os próprios dados; nunca aceita senha sugerida nem salva nada.
+- **IA sugere, pessoa decide: caso real.** No BrowserStack, o CT07 (swipe) falhou só no Galaxy S23. A triagem por IA classificou como "bug de produto, confiança alta", mas o mesmo teste passou no Pixel 8 na mesma execução: o carrossel funcionava, o problema era o gesto naquele aparelho. A causa (o gesto nativo não movia o carrossel na Samsung) foi confirmada pelo screenshot e o teste ganhou conferência de movimento e um gesto alternativo. Por isso a triagem não altera resultado nem abre bug sozinha.
 - **IA fora do caminho crítico.** Tem fallback heurístico, saída validada por código e revisão humana antes de qualquer mudança no repositório.
