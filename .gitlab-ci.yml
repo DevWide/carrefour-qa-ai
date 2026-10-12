@@ -1,10 +1,10 @@
 # Pipeline equivalente no GitLab CI/CD (o PDF do desafio mobile pede GitLab).
-# Diferenca em relacao ao GitHub Actions: os runners compartilhados do GitLab.com nao tem KVM nem macOS,
-# entao a suite mobile roda no BrowserStack (dispositivos reais). Com runner proprio (macOS/KVM),
-# os jobs mobile-android/ios do GitHub podem ser reproduzidos aqui sem mudancas no codigo.
+# Diferença em relação ao GitHub Actions: os runners compartilhados do GitLab.com não têm KVM nem macOS,
+# então a suíte mobile roda no BrowserStack (dispositivos reais). Com runner próprio (macOS/KVM),
+# os jobs mobile-android/ios do GitHub podem ser reproduzidos aqui sem mudanças no código.
 #
-# Variaveis (Settings > CI/CD > Variables): OPENAI_API_KEY, GEMINI_API_KEY ou ANTHROPIC_API_KEY (opcional),
-# JEV_API_KEY (opcional, triagem hibrida TypeSafe AI), BROWSERSTACK_USERNAME e BROWSERSTACK_ACCESS_KEY (para o job mobile).
+# Variáveis (Settings → CI/CD → Variables): OPENAI_API_KEY, GEMINI_API_KEY ou ANTHROPIC_API_KEY (opcional),
+# JEV_API_KEY (opcional, triagem híbrida TypeSafe AI), BROWSERSTACK_USERNAME e BROWSERSTACK_ACCESS_KEY (para o job mobile).
 
 stages: [test, report]
 
@@ -14,12 +14,12 @@ default:
 variables:
   npm_config_cache: "$CI_PROJECT_DIR/.npm"
 
-# O GitLab aceita no maximo 2 arquivos em cache:key:files; uma chave fixa basta (o npm ci confere os lockfiles)
+# O GitLab aceita no máximo 2 arquivos em cache:key:files; uma chave fixa basta (o npm ci confere os lockfiles)
 cache:
   key: npm-cache
   paths: [.npm/]
 
-# Cada job so roda se a sua pasta mudou (em pipelines agendados, "changes" e sempre verdadeiro: roda tudo).
+# Cada job só roda se a sua pasta mudou (em pipelines agendados, "changes" é sempre verdadeiro: roda tudo).
 .mudou-ai: &mudou-ai [ai/**/*, .gitlab-ci.yml]
 .mudou-api: &mudou-api [api/**/*, ai/**/*, .gitlab-ci.yml]
 .mudou-mobile: &mudou-mobile [mobile/**/*, ai/**/*, .gitlab-ci.yml]
@@ -54,34 +54,54 @@ api:
     expire_in: 30 days
     paths: [api/allure-report, api/allure-results, api/ai-triage, api/serverest.log]
 
-# ATENCAO: Este job documenta 5 bugs REAIS da API ServeRest (KI-01 a KI-05).
-# Ele vai falhar propositalmente. Tem allow_failure: true, entao o pipeline nao quebra.
-# Se este job PASSAR, significa que a API foi corrigida! (atualizar o README secao 3)
-#
-# KI-01 [CRITICA]: Email case-sensitive (Fulano@x.com != fulano@x.com)
-# KI-02 [CRITICA]: GET /usuarios devolve senha em texto puro
-# KI-03 [NORMAL]:  Sem rate limit (requisito pede 100 req/min)
-# KI-04 [MENOR]:   Recurso inexistente retorna 400 em vez de 404
-# KI-05 [NORMAL]:  Nome so com espacos e aceito (descoberto pela IA)
 api-known-issues:
   stage: test
-  allow_failure: true # divergencias requisito x implementacao: visiveis, mas nao bloqueiam
+  allow_failure: true # divergências requisito x implementação: visíveis, mas não bloqueiam
   rules:
     - changes: *mudou-api
   script:
-    - echo "ATENCAO: Este job VAI FALHAR de proposito. Documenta bugs reais da ServeRest."
-    - echo "Consulte o README secao 3 para detalhes dos KI-01 a KI-05."
+    - echo "========================================"
+    - echo "🐛 DIVERGÊNCIAS CONHECIDAS (KI-01 a KI-05)"
+    - echo "========================================"
+    - echo ""
+    - echo "⚠️  ESTE JOB VAI FALHAR PROPOSITALMENTE!"
+    - echo ""
+    - echo "Estas falhas documentam bugs REAIS da API ServeRest"
+    - echo "que violam o requisito ou boas práticas de segurança:"
+    - echo ""
+    - echo "  🔴 KI-01 (Crítica): Email case-sensitive (Fulano@x.com ≠ fulano@x.com)"
+    - echo "  🔴 KI-02 (Crítica): GET /usuarios devolve senha em texto puro"
+    - echo "  🟡 KI-03 (Normal):  Sem rate limit (requisito pede 100 req/min)"
+    - echo "  🟢 KI-04 (Menor):   Recurso inexistente retorna 400 em vez de 404"
+    - echo "  🟡 KI-05 (Normal):  Nome só com espaços é aceito (descoberto pela IA!)"
+    - echo ""
+    - echo "📋 Por que testes que falham intencionalmente?"
+    - echo "   → Documentam o comportamento esperado vs. real"
+    - echo "   → Acompanham se a API um dia for corrigida (teste passa = bug resolvido)"
+    - echo "   → NÃO bloqueiam o pipeline (allow_failure: true)"
+    - echo "   → NÃO gastam tokens de IA (marcados como @known-issue)"
+    - echo ""
+    - echo "Se este job PASSAR, significa que a API foi corrigida!"
+    - echo "Nesse caso, atualize a documentação no README (seção 3)."
+    - echo "========================================"
+    - echo ""
     - npm ci --prefix api
     - cd api
     - (npx serverest --timeout 3600 > /dev/null 2>&1 &)
     - npx --yes wait-on http://localhost:3000/usuarios --timeout 60000
+    - echo ""
+    - echo "🧪 Executando testes de divergências conhecidas..."
     - npm run test:known-issues || true
-    - echo "Job de divergencias concluido. As falhas acima sao esperadas (allow_failure)."
+    - echo ""
+    - echo "========================================"
+    - echo "✅ Job de divergências concluído (falhas são esperadas)"
+    - echo "   Consulte os artefatos para detalhes de cada KI."
+    - echo "========================================"
 
 mobile-browserstack:
   stage: test
   variables:
-    # Mesmo ajuste do GitHub Actions: cada comando vai pela internet ate o aparelho real
+    # Mesmo ajuste do GitHub Actions: cada comando vai pela internet até o aparelho real
     WAIT_FACTOR: "2"
     SPEC_RETRIES: "1"
   rules:
