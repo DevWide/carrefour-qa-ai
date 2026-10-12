@@ -170,7 +170,7 @@ async function main() {
   const conhecidas = falhas.filter((f) => f.tags.includes('known-issue'));
   const paraIA = falhas.filter((f) => !f.tags.includes('known-issue'));
 
-  let itens = conhecidos.map((f) => ({
+  let itens = conhecidas.map((f) => ({
     id: f.id,
     ...triagemHeuristica(f),
     grupo: 'divergência conhecida',
