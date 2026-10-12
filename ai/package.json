@@ -1,13 +1,15 @@
 {
   "name": "carrefour-qa-ai-ai",
   "version": "1.0.0",
-  "description": "Camada de IA: geração de casos, self-healing e triagem de falhas",
+  "description": "Camada de IA: geração de casos, self-healing e triagem de falhas (híbrida: Jev + LLM)",
   "scripts": {
     "generate:api": "node generate-api-cases.js",
     "analyze:api": "node analyze-failures.js --results ../api/allure-results --out ../api/ai-triage --suite API",
     "analyze:mobile": "node analyze-failures.js --results ../mobile/allure-results --out ../mobile/ai-triage --suite Mobile",
     "heal": "node self-heal.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "test:jev": "node test-jev.js",
+    "jev:status": "node -e \"import('./src/jev.js').then(m => console.log('Jev:', m.isJevEnabled() ? '✅ Ativo' : '❌ Desativado (configure JEV_API_KEY)'))\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.129.0",

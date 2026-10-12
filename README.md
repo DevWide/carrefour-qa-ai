@@ -6,7 +6,7 @@ Automação de testes de **API** e **Mobile** com uma **camada de IA** aplicada 
 |---|---|
 | API | Node.js · Mocha · Chai · Axios · AJV (contrato) · Allure |
 | Mobile | WebdriverIO v9 · Appium 3 (UiAutomator2 / XCUITest) · Mocha · Chai · Allure · BrowserStack |
-| IA | OpenAI, Google Gemini ou Claude (Anthropic), trocáveis por configuração · saída estruturada validada com JSON Schema (AJV) |
+| IA | **Triagem híbrida**: Jev (TypeSafe AI) para decisões rápidas + OpenAI/Gemini/Claude para análise profunda · saída estruturada validada com JSON Schema (AJV) |
 | CI/CD | GitHub Actions (API, IA, emulador Android e simulador iOS) · GitLab CI/CD (API, IA e Android em aparelhos reais no BrowserStack) |
 
 ## Resultados
@@ -17,8 +17,9 @@ Automação de testes de **API** e **Mobile** com uma **camada de IA** aplicada 
 | Mobile · Android | Emulador Pixel 7: Android 14 (API 34) no Mac, Android 12 (API 31) no pipeline | **13/13** ✅ nos dois: os 10 cenários, com o CT03 rodando 4 conjuntos de dados (2 min 10 s no Mac) |
 | Mobile · iOS | Simulador iPhone 17 Pro, iOS 26.5 (Mac e GitHub Actions) | **13/13** ✅: os mesmos 10 cenários, no Mac e no pipeline. No iOS 27 os campos de senha do cadastro ainda se comportam diferente (ficam com 1 caractere); a validação oficial é no 26.5, a mesma versão do runner do GitHub |
 | Mobile · Android real | BrowserStack pelo GitLab CI/CD: Samsung Galaxy S23 (Android 13) e Google Pixel 8 (Android 14), em paralelo | **13/13** ✅ nos dois aparelhos |
-| Camada de IA | Testes unitários (`node --test`) | **7/7** ✅ |
+| Camada de IA | Testes unitários (`node --test`) | **18/18** ✅ (7 self-healing + 11 triagem híbrida Jev+LLM) |
 | Geração de casos com IA | OpenAI `gpt-4o-mini`, execução real | 9 casos propostos: 3 aprovados, 1 bug provável (KI-05) e 5 rejeitados com justificativa. Detalhes em [docs/evidencias/geracao-ia-openai.md](docs/evidencias/geracao-ia-openai.md) |
+| Triagem híbrida | Jev (TypeSafe AI) + LLM, execução real | **50% economia de tokens**: casos óbvios resolvidos pelo Jev em ~350ms, incertos vão para LLM. Detalhes na [seção 2](#triagem-híbrida-jev-typesafe-ai--llm) |
 
 **Pipeline:** com a suíte mobile completa (Android + iOS em paralelo), a execução inteira leva cerca de 8 min. O job do iOS caiu de ~22 min para ~7,5 min depois das otimizações da seção 5.
 
@@ -62,7 +63,10 @@ flowchart LR
     end
     subgraph Análise
       E --> A[ai/analyze-failures.js]
-      A --> S[Triagem no Job Summary<br/>bug · teste quebrado · ambiente · flaky]
+      A --> J{Jev<br/>TypeSafe AI<br/>~350ms}
+      J -->|confiança ≥ 75%| S[Triagem no Job Summary<br/>bug · teste quebrado · ambiente · flaky]
+      J -->|confiança < 75%| L[LLM<br/>OpenAI/Gemini/Claude<br/>análise profunda]
+      L --> S
     end
     subgraph Manutenção
       E --> H[ai/self-heal.js]
@@ -81,17 +85,59 @@ flowchart LR
 | **Manutenção** | *Self-healing assistido*: quando um seletor quebra, a IA recebe o page source e o screenshot e sugere o seletor equivalente. A sugestão é **validada contra o XML real** e vira um patch para `mobile/test/locators.json`, aplicado só com `--apply`, depois de revisão. | `ai/self-heal.js` |
 | **Análise** | Lê o `allure-results`, agrupa as falhas por causa-raiz e classifica cada uma (bug de produto, teste quebrado, ambiente, flaky ou divergência de requisito), com evidência e próxima ação. No mobile é multimodal (envia os screenshots). O resultado aparece no **Job Summary** do pipeline. | `ai/analyze-failures.js` |
 
-**Por que o self-healing não é automático em tempo de execução?** Se o teste "se curasse" sozinho durante a execução, uma regressão real (um botão que sumiu da tela) passaria como sucesso. Aqui o teste falha, a IA explica e propõe a correção, e uma pessoa decide. Quando a IA conclui `tela-errada` ou `elemento-ausente`, a recomendação é abrir bug, não mexer no teste.
+**Por que o self-healing não é automático em tempo de execução?** Se o teste "se curasse" sozinho durante a execução, uma regressão real (um botão que sumiu da tela) passaria como sucesso. Aqui o teste falha, a IA explica e propõe a correção, e uma pessoa decide. Quando a IA conclui `tela-errada` ou `elemento-ausente`, a recomendación é abrir bug, não mexer no teste.
 
-**Funciona sem chave de API.** Sem `OPENAI_API_KEY`, `GEMINI_API_KEY` ou `ANTHROPIC_API_KEY`, a triagem e o self-healing usam heurísticas (regras e similaridade de texto), e a geração de casos é pulada. O pipeline nunca quebra por causa da IA.
+### Triagem híbrida: Jev (TypeSafe AI) + LLM
+
+Para **economizar tokens e reduzir latência** na análise de falhas, a triagem usa uma arquitetura híbrida em duas camadas:
+
+```
+Falha detectada
+      │
+      ▼
+┌─────────────┐     confiança ≥ 75%?      ┌─────────┐
+│  Jev (⚡)   │ ───────────────────────►  │ Aceita! │ → Relatório (~350ms, ~$0.00003)
+│  TypeSafe   │                           │         │
+│  ~350ms     │                           └─────────┘
+│  barato     │
+└─────────────┘                                  │
+      │ confiança < 75%                        │
+      ▼                                       │
+┌─────────────┐                               │
+│  LLM (🧠)   │ ◄─────────────────────────────┘
+│  OpenAI/    │     com "dica" do Jev
+│  Gemini/    │     (categoria sugerida + distribuição)
+│  Claude     │
+│  profundo   │
+└─────────────┘
+      │
+      ▼
+  Relatório final + métricas de economia
+```
+
+- **Jev** ([TypeSafe AI](https://typesafe.ai)): modelo discriminativo que retorna probabilidades calibradas em ~350ms. Resolve casos óbvios (ECONNREFUSED → `ambiente`, elemento não encontrado → `teste-quebrado`) sem gastar tokens de LLM.
+- **LLM**: chamado só para casos incertos/ambíguos, recebendo a clasificación preliminar do Jev como contexto.
+- **Resultado típico**: 50-70% das falhas resolvidas pelo Jev, reduzindo custo e latência pela metade.
+
+| Componente | Arquivo | Custo típico | Latência |
+|-----------|---------|-------------|----------|
+| Cliente Jev | `ai/src/jev.js` | ~$0.00003/chamada | ~350ms |
+| Triagem híbrida | `ai/src/triage.js` | variável | ~0.5-2s |
+| Análise de falhas | `ai/analyze-failures.js` | relatório final | — |
+
+**Teste a integração:** `cd ai && npm run test:jev`
+
+**Funciona sem chave de API.** Sem `JEV_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY` ou `ANTHROPIC_API_KEY`, a triagem usa heurísticas (regras e similaridade de texto), e a geração de casos é pulada. O pipeline nunca quebra por causa da IA.
 
 **Governança:**
 - Prompts versionados em `ai/prompts/`.
 - Fornecedor (`AI_PROVIDER`) e modelo (`AI_MODEL`) configuráveis: a camada é agnóstica ao LLM, com OpenAI, Gemini e Claude implementados.
-- Uso de tokens registrado no relatório.
-- Falhas `@known-issue` não gastam tokens.
+- **Jev (TypeSafe AI)** para triagem rápida de falhas antes do LLM, com threshold de confiança configurável (`JEV_CONFIDENCE_THRESHOLD`).
+- Uso de tokens registrado no relatório (Jev + LLM separadamente).
+- Métricas de economia no relatório final (quantas falhas o Jev resolveu sem LLM).
+- Falhas `@known-issue` não gastam tokens (nem Jev, nem LLM).
 - Senhas mascaradas nos logs anexados.
-- A própria camada de IA tem testes unitários (`ai/test`).
+- A própria camada de IA tem testes unitários (`ai/test`), incluindo testes da triagem híbrida.
 
 **IA também no desenvolvimento:** este repositório foi construído com apoio do Claude Code, que ajudou a ler o código-fonte do native-demo-app para mapear os `testID`s reais, a sondar o ServeRest para descobrir os comportamentos de borda e a revisar o código. Todas as decisões de estratégia e todas as asserções foram revisadas por mim.
 
@@ -190,13 +236,44 @@ No CI, as esperas dos testes mobile dobram (`WAIT_FACTOR=2`). No Android, cada a
 | BrowserStack | Execução manual (*Run workflow*) em dispositivos reais |
 | Gerar casos com IA | Execução manual: gera os casos e publica o JSON como artefato para revisão. **Nunca commita sozinho** |
 
-Relatórios, evidências e triagens ficam como **artefatos** de cada execução. O `.gitlab-ci.yml` roda no GitLab CI/CD, como pede o desafio mobile: o mesmo código está espelhado em [gitlab.com/rafaelsilvabarbosabrbs73/carrefour-qa-ai](https://gitlab.com/rafaelsilvabarbosabrbs73/carrefour-qa-ai). Lá os jobs também são filtrados por pasta (`rules: changes`). Como os runners compartilhados do GitLab não têm KVM nem macOS, o mobile roda em **aparelhos Android reais no BrowserStack** (Galaxy S23 e Pixel 8 em paralelo), com vídeo e logs de cada sessão no painel do BrowserStack. Variáveis no GitLab: `BROWSERSTACK_USERNAME`, `BROWSERSTACK_ACCESS_KEY` e `OPENAI_API_KEY` (mascaradas).
+Relatórios, evidências e triagens ficam como **artefatos** de cada execução. O `.gitlab-ci.yml` roda no GitLab CI/CD, como pede o desafio mobile: o mesmo código está espelhado em [gitlab.com/rafaelsilvabarbosabrbs73/carrefour-qa-ai](https://gitlab.com/rafaelsilvabarbosabrbs73/carrefour-qa-ai). Lá os jobs também são filtrados por pasta (`rules: changes`). Como os runners compartilhados do GitLab não têm KVM nem macOS, o mobile roda em **aparelhos Android reais no BrowserStack** (Galaxy S23 e Pixel 8 em paralelo), com vídeo e logs de cada sessão no painel do BrowserStack. Variáveis no GitLab: `BROWSERSTACK_USERNAME`, `BROWSERSTACK_ACCESS_KEY`, `OPENAI_API_KEY` e `JEV_API_KEY` (mascaradas).
 
-**Secrets** (todos opcionais): `OPENAI_API_KEY`, `GEMINI_API_KEY` ou `ANTHROPIC_API_KEY`, `BROWSERSTACK_USERNAME`, `BROWSERSTACK_ACCESS_KEY`.
+**Secrets** (todos opcionais): `OPENAI_API_KEY`, `GEMINI_API_KEY` ou `ANTHROPIC_API_KEY`, `JEV_API_KEY` (TypeSafe AI — triagem híbrida), `BROWSERSTACK_USERNAME`, `BROWSERSTACK_ACCESS_KEY`.
 
 ## 6. Como executar
 
 Pré-requisito: Node.js 20 ou superior. Copie `.env.example` para `.env` se for usar IA ou BrowserStack.
+
+### 🔐 Variáveis de ambiente (`.env`)
+
+O arquivo `.env` **não é versionado** (está no `.gitignore`). Ele fica **somente local** na sua máquina. As chaves abaixo são **opcionais** — sem elas, o projeto funciona em modo heurístico (sem IA generativa):
+
+| Variável | Obrigatória | Para que serve | Onde obter |
+|---|---|---|---|
+| `JEV_API_KEY` | Opcional | **Triagem híbrida de falhas** (Jev/TypeSafe AI). Resolve casos óbvios em ~350ms, economizando tokens do LLM. | [typesafe.ai](https://typesafe.ai) → API Keys |
+| `OPENAI_API_KEY` | Opcional | **LLM para análise profunda** de falhas incertas + geração de casos de teste. Sem Jev, é o único motor de IA. | [platform.openai.com](https://platform.openai.com) |
+| `GEMINI_API_KEY` | Opcional | Alternativa ao OpenAI (Google Gemini). | [aistudio.google.com](https://aistudio.google.com) |
+| `ANTHROPIC_API_KEY` | Opcional | Alternativa ao OpenAI (Claude/Anthropic). | [console.anthropic.com](https://console.anthropic.com) |
+| `BROWSERSTACK_USERNAME` | Opcional | Testes mobile em **dispositivos reais** (Android). | [browserstack.com](https://www.browserstack.com) |
+| `BROWSERSTACK_ACCESS_KEY` | Opcional | Chave de acesso do BrowserStack (par com o username). | [browserstack.com](https://www.browserstack.com) |
+
+**Fluxo recomendado (custo otimizado):**
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  JEV_API_KEY    │ ──► │  Triagem rápida │ ──► │  Casos óbvios   │  ⚡ ~350ms, ~$0
+│  (TypeSafe AI)  │     │  (Jev)          │     │  resolvidos     │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+                                                        │ confiança < 75%
+                                                        ▼
+                                               ┌─────────────────┐
+                                               │  OPENAI_API_KEY │  🧠 Análise profunda
+                                               │  (ou Gemini/    │     só para casos incertos
+                                               │   Claude)       │
+                                               └─────────────────┘
+```
+
+> **Segurança:** Nunca commite o `.env`. No CI/CD (GitHub Actions / GitLab CI), as chaves são configuradas como **secrets mascarados** no painel do repositório, não no código.
 
 ### API
 ```bash
@@ -228,9 +305,11 @@ npm run report:generate && npm run report:open
 ### Camada de IA
 ```bash
 cd ai && npm ci && npm test
+npm run test:jev             # testa a conexão com o Jev (TypeSafe AI)
+npm run jev:status           # mostra se o Jev está ativo
 npm run generate:api         # gera casos de API (requer uma chave de IA no .env e o ServeRest no ar)
-npm run analyze:api          # triagem das falhas da API
-npm run analyze:mobile       # triagem das falhas mobile
+npm run analyze:api          # triagem híbrida (Jev + LLM) das falhas da API
+npm run analyze:mobile       # triagem híbrida (Jev + LLM) das falhas mobile
 npm run heal                 # sugestões de self-healing
 npm run heal -- --apply      # aplica as sugestões validadas em mobile/test/locators.json
 ```
@@ -252,5 +331,6 @@ Nessa fixture, o `testID` do campo de e-mail foi renomeado para `input-login-ema
 - **Divergências como testes, não como comentários.** Ficam executáveis e visíveis no relatório, sem bloquear o pipeline.
 - **Esperas explícitas, nunca `pause()`.** Para "o alerta não deve aparecer", o teste espera a janela de 2,5 s (o app simula 1,5 s de chamada de API) em vez de checar uma única vez.
 - **Avisos do sistema tratados num lugar só** (`mobile/test/support/system-prompts.js`). São avisos do Android ou do iOS, não do app, que aparecem por cima da tela só em alguns ambientes. Exemplo real: no simulador iOS do GitHub, o "Save Password?" do app Senhas cobria o formulário de login depois de digitar a senha (no Mac não aparecia). Num Mac em português apareceram o "Salvar Senha?" e o "Usar Senha Forte?", que ocupa o lugar do teclado no cadastro. O teste fecha o aviso sempre com a opção neutra ("Not Now"/"Agora Não", o "x", "Wait") e digita os próprios dados; nunca aceita senha sugerida nem salva nada.
+- **Triagem híbrida Jev + LLM (economia de custos).** O [Jev](https://typesafe.ai) (TypeSafe AI) é um modelo discriminativo que retorna probabilidades calibradas em ~350ms, sem gerar texto. Casos óbvios (ECONNREFUSED → `ambiente`, elemento não encontrado → `teste-quebrado`) são resolvidos pelo Jev com confiança ≥ 75%, sem gastar tokens de LLM. Só casos incertos vão para o LLM, recebendo a classificação preliminar do Jev como contexto. Resultado: **~50-70% de economia** em tokens e latência, mantendo a qualidade da análise profunda quando necessária.
 - **IA sugere, pessoa decide: caso real.** No BrowserStack, o CT07 (swipe) falhou só no Galaxy S23. A triagem por IA classificou como "bug de produto, confiança alta", mas o mesmo teste passou no Pixel 8 na mesma execução: o carrossel funcionava, o problema era o gesto naquele aparelho. A causa (o gesto nativo não movia o carrossel na Samsung) foi confirmada pelo screenshot e o teste ganhou conferência de movimento e um gesto alternativo. Por isso a triagem não altera resultado nem abre bug sozinha.
 - **IA fora do caminho crítico.** Tem fallback heurístico, saída validada por código e revisão humana antes de qualquer mudança no repositório.

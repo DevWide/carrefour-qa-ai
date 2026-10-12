@@ -6,8 +6,11 @@
  * (mensagem, stack, logs de request/response, screenshots) e gera uma triagem:
  * categoria da causa, confiança, evidência e próxima ação.
  *
- * - Com chave de IA (Gemini ou Claude): triagem pelo LLM (multimodal — screenshots do mobile vão como imagem).
- * - Sem chave: triagem heurística por regras, para o relatório nunca ficar vazio.
+ * Estratégia híbrida (Jev + LLM):
+ * - Jev (TypeSafe AI): triagem rápida e barata (~50ms, custo mínimo).
+ *   Casos óbvios são resolvidos sem gastar tokens de LLM.
+ * - LLM (OpenAI/Gemini/Claude): análise profunda só para casos incertos.
+ * - Heurística: fallback quando nenhuma IA está disponível.
  *
  * Saídas: <out>/ai-triage.md, <out>/ai-triage.json e, no GitHub Actions, o Job Summary.
  *
@@ -15,7 +18,9 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { isEnabled, structuredCall, text, image, MODEL, PROVIDER } from './src/llm.js';
+import { isEnabled, MODEL, PROVIDER } from './src/llm.js';
+import { HybridTriage } from './src/triage.js';
+import { isJevEnabled } from './src/jev.js';
 
 const arg = (name, def) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -25,7 +30,7 @@ const RESULTS = path.resolve(arg('results', 'allure-results'));
 const OUT = path.resolve(arg('out', 'ai-triage'));
 const SUITE = arg('suite', 'Testes');
 const MAX_FALHAS = Number(arg('max', 25));
-const MAX_IMAGENS = 5;
+const CONCURRENCY = Number(arg('concurrency', 3));
 const here = path.dirname(new URL(import.meta.url).pathname);
 
 // ---------------------------------------------------------------- coleta
@@ -78,7 +83,7 @@ function coletarAnexos(result) {
   return { logs: logs.slice(-3), imagens: imagens.slice(-1) };
 }
 
-// ---------------------------------------------------------------- triagem heurística (fallback)
+// ---------------------------------------------------------------- triagem heurística para casos conhecidos (não gasta tokens)
 function triagemHeuristica(f) {
   const msg = `${f.mensagem ?? ''}\n${f.stack ?? ''}`;
   const regra = (categoria, confianca, justificativa, proximaAcao) => ({ categoria, confianca, justificativa, proximaAcao });
@@ -90,7 +95,7 @@ function triagemHeuristica(f) {
   if (f.tentativas > 1 && f.status === 'failed')
     return regra('flaky', 'media', `Falhou em ${f.tentativas} tentativas com retry.`, 'Investigar esperas e dependência de dados entre testes.');
   if (/element .* (still )?not (displayed|existing)|no such element|wasn't found|stale element/i.test(msg))
-    return regra('teste-quebrado', 'media', 'Elemento não encontrado — seletor provavelmente mudou.', 'Rodar o self-healing (npm run ai:heal) e revisar o seletor sugerido.');
+    return regra('teste-quebrado', 'media', 'Elemento não encontrado — seletor provavelmente mudou.', 'Rodar o self-healing (npm run heal) e revisar o seletor sugerido.');
   if (/schema/i.test(msg))
     return regra('bug-produto', 'media', 'Resposta fora do contrato (JSON Schema).', 'Comparar o corpo anexado com o schema e abrir bug se o contrato não mudou.');
   if (/expected \d{3} to equal \d{3}/.test(msg))
@@ -98,55 +103,13 @@ function triagemHeuristica(f) {
   return regra('teste-quebrado', 'baixa', 'Sem padrão conhecido.', 'Analisar manualmente o stack trace e as evidências.');
 }
 
-// ---------------------------------------------------------------- triagem por IA
-const schemaTriagem = {
-  type: 'object',
-  required: ['resumo', 'itens'],
-  properties: {
-    resumo: { type: 'string', description: 'Dois a quatro parágrafos curtos: o que falhou, causas principais, o que fazer primeiro.' },
-    itens: {
-      type: 'array',
-      items: {
-        type: 'object',
-        required: ['id', 'categoria', 'confianca', 'grupo', 'evidencia', 'justificativa', 'proximaAcao'],
-        properties: {
-          id: { type: 'string' },
-          categoria: { type: 'string', enum: ['bug-produto', 'teste-quebrado', 'ambiente', 'flaky', 'divergencia-requisito'] },
-          confianca: { type: 'string', enum: ['alta', 'media', 'baixa'] },
-          grupo: { type: 'string', description: 'Rótulo curto da causa-raiz compartilhada' },
-          evidencia: { type: 'string' },
-          justificativa: { type: 'string' },
-          proximaAcao: { type: 'string' },
-        },
-      },
-    },
-  },
-};
-
-async function triagemIA(falhas) {
-  const system = fs.readFileSync(path.join(here, 'prompts/analyze-failures.md'), 'utf8');
-  const content = [text(`Suíte: ${SUITE}. Falhas a analisar: ${falhas.length}.`)];
-  let imagens = 0;
-
-  for (const f of falhas) {
-    const { screenshots, ...semImagem } = f;
-    content.push(text(`<falha id="${f.id}">\n${JSON.stringify(semImagem, null, 2)}\n</falha>`));
-    for (const s of screenshots) {
-      if (imagens >= MAX_IMAGENS) break;
-      content.push(text(`Screenshot da falha ${f.id} (${s.nome}):`));
-      content.push(image(fs.readFileSync(s.file).toString('base64'), s.type));
-      imagens += 1;
-    }
-  }
-
-  return structuredCall({ system, content, toolName: 'registrar_triagem', schema: schemaTriagem });
-}
-
 // ---------------------------------------------------------------- relatório
-const ICONES = { 'bug-produto': '🐞', 'teste-quebrado': '🔧', ambiente: '🌐', flaky: '🎲', 'divergencia-requisito': '📄' };
+const ICONES = { 'bug-produto': '🐞', 'teste-quebrado': '🔧', ambiente: '🌐', flaky: '🎲', 'divergencia-requisito': '📄', heuristic: '📋', jev: '⚡', llm: '🧠' };
+const FONTE_ICONES = { jev: '⚡', llm: '🧠', heuristic: '📋' };
 
-function montarMarkdown({ total, falhas, itens, resumo, modo }) {
+function montarMarkdown({ total, falhas, itens, resumo, modo, stats }) {
   const porCategoria = itens.reduce((acc, i) => ({ ...acc, [i.categoria]: (acc[i.categoria] ?? 0) + 1 }), {});
+  const porFonte = itens.reduce((acc, i) => ({ ...acc, [i.source || 'heuristic']: (acc[i.source || 'heuristic'] ?? 0) + 1 }), {});
   const linhas = [
     `## 🤖 Triagem de falhas por IA — ${SUITE}`,
     '',
@@ -156,12 +119,21 @@ function montarMarkdown({ total, falhas, itens, resumo, modo }) {
   if (!falhas.length) return [...linhas, '✅ Nenhuma falha para analisar.'].join('\n');
 
   linhas.push(Object.entries(porCategoria).map(([c, n]) => `${ICONES[c] ?? '•'} ${c}: **${n}**`).join(' · '), '');
+
+  // Mostra a distribuição por fonte (Jev vs LLM vs heurística)
+  const fontesTexto = Object.entries(porFonte)
+    .map(([f, n]) => `${FONTE_ICONES[f] ?? '•'} ${f}: ${n}`)
+    .join(' · ');
+  linhas.push(`**Fonte da análise:** ${fontesTexto}`, '');
+
   if (resumo) linhas.push('### Resumo', '', resumo, '');
-  linhas.push('### Falhas', '', '| Teste | Categoria | Confiança | Próxima ação |', '|---|---|---|---|');
+  linhas.push('### Falhas', '', '| Teste | Categoria | Conf. | Fonte | Próxima ação |', '|---|---|---|---|---|');
   for (const i of itens) {
     const f = falhas.find((x) => x.id === i.id);
     const celula = (s) => String(s ?? '').replaceAll('|', '\\|').replaceAll('\n', ' ');
-    linhas.push(`| ${celula(f?.nome)} | ${ICONES[i.categoria] ?? ''} ${i.categoria} | ${i.confianca} | ${celula(i.proximaAcao)} |`);
+    const fonte = FONTE_ICONES[i.source] ?? '';
+    const conf = i.confiancaNumerica ? `${i.confianca} (${(i.confiancaNumerica * 100).toFixed(0)}%)` : i.confianca;
+    linhas.push(`| ${celula(f?.nome)} | ${ICONES[i.categoria] ?? ''} ${i.categoria} | ${conf} | ${fonte} | ${celula(i.proximaAcao)} |`);
   }
   linhas.push(
     '',
@@ -169,12 +141,22 @@ function montarMarkdown({ total, falhas, itens, resumo, modo }) {
     '',
     ...itens.map((i) => {
       const f = falhas.find((x) => x.id === i.id);
-      return `- **${f?.nome}**${i.grupo ? ` _(grupo: ${i.grupo})_` : ''}\n  - Evidência: ${i.evidencia ?? '—'}\n  - Justificativa: ${i.justificativa}`;
+      const fonteLabel = i.source === 'jev' ? '⚡ Jev (rápido)' : i.source === 'llm' ? '🧠 LLM (profundo)' : '📋 Heurística';
+      return `- **${f?.nome}**${i.grupo ? ` _(grupo: ${i.grupo})_` : ''} _[${fonteLabel}]_\n  - Evidência: ${i.evidencia ?? '—'}\n  - Justificativa: ${i.justificativa}`;
     }),
     '',
     '</details>',
     '',
+  );
+
+  // Estatísticas da triagem híbrida
+  if (stats) {
+    linhas.push(stats, '');
+  }
+
+  linhas.push(
     '> A triagem é uma **sugestão** para acelerar a análise. O resultado dos testes (pass/fail) não é alterado pela IA.',
+    '> ⚡ = resolvido pelo Jev (rápido, ~50ms) · 🧠 = análise profunda pelo LLM · 📋 = regra heurística',
   );
   return linhas.join('\n');
 }
@@ -184,32 +166,72 @@ async function main() {
   const { total, falhas: todas } = coletarFalhas();
   const falhas = todas.slice(0, MAX_FALHAS);
 
-  // Falhas já conhecidas não gastam tokens.
+  // Falhas já conhecidas não gastam tokens (heurística direta).
   const conhecidas = falhas.filter((f) => f.tags.includes('known-issue'));
   const paraIA = falhas.filter((f) => !f.tags.includes('known-issue'));
 
-  let itens = conhecidas.map((f) => ({ id: f.id, ...triagemHeuristica(f), grupo: 'divergência conhecida', evidencia: f.mensagem }));
+  let itens = conhecidos.map((f) => ({
+    id: f.id,
+    ...triagemHeuristica(f),
+    grupo: 'divergência conhecida',
+    evidencia: f.mensagem,
+    source: 'heuristic',
+  }));
   let resumo = '';
-  let modo = 'heurístico';
 
-  if (paraIA.length && isEnabled()) {
+  // Determina o modo de operação
+  const jevAtivo = isJevEnabled();
+  const llmAtivo = isEnabled();
+  let modo = 'heurístico';
+  let stats = null;
+
+  if (paraIA.length && (jevAtivo || llmAtivo)) {
+    // Usa triagem híbrida (Jev + LLM)
+    const triage = new HybridTriage({ confidenceThreshold: Number(process.env.JEV_CONFIDENCE_THRESHOLD) || 0.85 });
+    modo = jevAtivo && llmAtivo
+      ? `híbrido (⚡ Jev + 🧠 ${PROVIDER}/${MODEL})`
+      : jevAtivo
+        ? 'Jev (TypeSafe AI)'
+        : `LLM (${PROVIDER}/${MODEL})`;
+
+    console.log(`\n🔍 Analisando ${paraIA.length} falhas com triagem híbrida (concorrência: ${CONCURRENCY})...\n`);
+
     try {
-      const { data, usage } = await triagemIA(paraIA);
-      itens = [...itens, ...data.itens];
-      resumo = data.resumo;
-      modo = `IA (${PROVIDER} · ${MODEL}, ${usage.input}+${usage.output} tokens)`;
+      const resultados = await triage.analyzeFailures(paraIA, { concurrency: CONCURRENCY });
+      itens = [...itens, ...resultados];
+      stats = triage.formatStats();
+
+      // Gera resumo aggregated a partir dos resultados
+      const grupos = {};
+      for (const r of resultados) {
+        grupos[r.categoria] = (grupos[r.categoria] || 0) + 1;
+      }
+      resumo = `**${resultados.length} falhas analisadas.** Principais categorias: ${
+        Object.entries(grupos).sort((a, b) => b[1] - a[1]).map(([c, n]) => `${c} (${n})`).join(', ')
+      }. ${triage.stats.jevResolved} resolvidas pelo Jev sem custo de LLM, ${triage.stats.llmCalled} enviadas para análise profunda.`;
     } catch (err) {
-      console.warn(`⚠️  Falha na chamada ao LLM (${err.message}). Usando triagem heurística.`);
+      console.warn(`⚠️  Falha na triagem híbrida (${err.message}). Usando heurística.`);
+      modo = 'heurístico';
     }
   }
+
+  // Fallback: heurística para o que não foi processado
   if (modo === 'heurístico') {
-    itens = [...itens, ...paraIA.map((f) => ({ id: f.id, ...triagemHeuristica(f), evidencia: f.mensagem?.split('\n')[0] }))];
+    itens = [...itens, ...paraIA.map((f) => ({
+      id: f.id,
+      ...triagemHeuristica(f),
+      evidencia: f.mensagem?.split('\n')[0],
+      source: 'heuristic',
+    }))];
   }
 
-  const md = montarMarkdown({ total, falhas, itens, resumo, modo });
+  const md = montarMarkdown({ total, falhas, itens, resumo, modo, stats });
   fs.mkdirSync(OUT, { recursive: true });
   fs.writeFileSync(path.join(OUT, 'ai-triage.md'), `${md}\n`);
-  fs.writeFileSync(path.join(OUT, 'ai-triage.json'), `${JSON.stringify({ suite: SUITE, modo, total, itens }, null, 2)}\n`);
+  fs.writeFileSync(
+    path.join(OUT, 'ai-triage.json'),
+    `${JSON.stringify({ suite: SUITE, modo, total, itens, stats: stats ? undefined : undefined }, null, 2)}\n`
+  );
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${md}\n`);
 
   console.log(md);
