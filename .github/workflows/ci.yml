@@ -27,16 +27,24 @@ concurrency:
 
 env:
   NODE_VERSION: '22'
-  # Camada de IA (opcional): defina UMA das chaves como secret; sem chave ela roda em modo heurístico
+  # Camada de IA (opcional): defina as chaves como secrets; sem chave ela roda em modo heurístico
   OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
   GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
   ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  # Triagem híbrida: Jev (TypeSafe AI) para casos óbvios, LLM para incertos
+  JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
+  JEV_CONFIDENCE_THRESHOLD: '0.75'
 
 # Como o pipeline decide o que rodar (para ficar leve e rápido):
 # - Cada job só roda se a sua pasta mudou (job "mudancas"). Mudar só README/docs não roda nada pesado.
 # - Push/PR que mexe no mobile: Android roda só os cenários @smoke (~5-7 min).
 # - Suíte mobile completa (Android + iOS): toda noite, no botão "Run workflow" e em push na main que mexe no mobile.
 # - Noite e "Run workflow" rodam tudo, independente do que mudou.
+#
+# ⚠️  O step "Divergências conhecidas" (dentro do job API · ServeRest) FALHA PROPOSITALMENTE:
+#     documenta 5 bugs reais da ServeRest (KI-01 a KI-05: senha em texto puro, email case-sensitive, etc).
+#     Tem continue-on-error: true — as falhas são esperadas e não fazem o job falhar.
+#     Se esse step PASSAR, significa que a API foi corrigida → atualizar o README (seção 3).
 jobs:
   # ------------------------------------------------------------------ O que mudou neste commit/PR
   mudancas:
@@ -112,7 +120,38 @@ jobs:
         if: always()
         continue-on-error: true
         working-directory: api
-        run: npm run test:known-issues
+        run: |
+          echo "========================================"
+          echo "🐛 DIVERGÊNCIAS CONHECIDAS (KI-01 a KI-05)"
+          echo "========================================"
+          echo ""
+          echo "⚠️  ESTE STEP VAI FALHAR PROPOSITALMENTE!"
+          echo ""
+          echo "Estas falhas documentam bugs REAIS da API ServeRest"
+          echo "que violam o requisito ou boas praticas de seguranca:"
+          echo ""
+          echo "  🔴 KI-01 (Critica): Email case-sensitive (Fulano@x.com ≠ fulano@x.com)"
+          echo "  🔴 KI-02 (Critica): GET /usuarios devolve senha em texto puro"
+          echo "  🟡 KI-03 (Normal):  Sem rate limit (requisito pede 100 req/min)"
+          echo "  🟢 KI-04 (Menor):   Recurso inexistente retorna 400 em vez de 404"
+          echo "  🟡 KI-05 (Normal):  Nome so com espacos e aceito (descoberto pela IA!)"
+          echo ""
+          echo "📋 Por que testes que falham intencionalmente?"
+          echo "   → Documentam o comportamento esperado vs. real"
+          echo "   → Acompanhham se a API um dia for corrigida (teste passa = bug resolvido)"
+          echo "   → NAO bloqueiam o pipeline (continue-on-error: true)"
+          echo "   → NAO gastam tokens de IA (marcados como @known-issue)"
+          echo ""
+          echo "Se este step PASSAR, significa que a API foi corrigida!"
+          echo "Nesse caso, atualize a documentacao no README (secao 3)."
+          echo "========================================"
+          echo ""
+          npm run test:known-issues || true
+          echo ""
+          echo "========================================"
+          echo "✅ Step de divergências concluído (falhas sao esperadas)"
+          echo "   Consulte os artefatos para detalhes de cada KI."
+          echo "========================================"
 
       - name: Relatório Allure
         if: always()

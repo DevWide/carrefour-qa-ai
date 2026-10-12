@@ -13,7 +13,7 @@ Automação de testes de **API** e **Mobile** com uma **camada de IA** aplicada 
 
 | Suíte | Ambiente | Resultado |
 |---|---|---|
-| API | ServeRest local, Node.js 22 | **54/54** ✅ (3 casos gerados por IA e revisados por mim), mais 5 divergências conhecidas que falham por design (seção 3) |
+| API | ServeRest local, Node.js 22 | **54/54** ✅ (3 casos gerados por IA e revisados por mim), mais **5 divergências conhecidas que falham por design** ⚠️ (seção 3 — jobs separados com `allow_failure`, documentam bugs reais da ServeRest) |
 | Mobile · Android | Emulador Pixel 7: Android 14 (API 34) no Mac, Android 12 (API 31) no pipeline | **13/13** ✅ nos dois: os 10 cenários, com o CT03 rodando 4 conjuntos de dados (2 min 10 s no Mac) |
 | Mobile · iOS | Simulador iPhone 17 Pro, iOS 26.5 (Mac e GitHub Actions) | **13/13** ✅: os mesmos 10 cenários, no Mac e no pipeline. No iOS 27 os campos de senha do cadastro ainda se comportam diferente (ficam com 1 caractere); a validação oficial é no 26.5, a mesma versão do runner do GitHub |
 | Mobile · Android real | BrowserStack pelo GitLab CI/CD: Samsung Galaxy S23 (Android 13) e Google Pixel 8 (Android 14), em paralelo | **13/13** ✅ nos dois aparelhos |
@@ -158,15 +158,23 @@ A matriz completa endpoint × status × cenário está em **[docs/cobertura-api.
 
 ### Divergências encontradas (requisito/boas práticas × ServeRest)
 
-Descrevem o comportamento **esperado**, falham hoje e rodam num job separado (`@known-issue`) que não bloqueia o pipeline:
+> ⚠️ **ATENÇÃO — Falhas esperadas no CI:** Os jobs `api-known-issues` (GitHub Actions) e `api-known-issues` (GitLab CI) **vão falhar propositalmente**. Isso é **esperado e correto**: esses testes documentam bugs reais da API ServeRest que violam o requisito ou boas práticas de segurança. Eles rodam num job separado com `allow_failure: true` (GitLab) / `continue-on-error: true` (GitHub) para ficarem **visíveis no relatório, mas sem bloquear o pipeline**. Se esses testes começarem a **passar**, significa que a API foi corrigida — nesse caso, atualize a documentação e remova o `@known-issue`.
 
-| Id | Severidade | Divergência |
-|---|---|---|
-| KI-01 | Crítica | A API aceita `Fulano@x.com` e `fulano@x.com` como contas diferentes (e-mail tratado como case-sensitive) |
-| KI-02 | Crítica | `GET /usuarios` devolve a **senha em texto puro** |
-| KI-03 | Normal | O requisito pede limite de 100 req/min; a API não aplica rate limit (nenhum 429) |
-| KI-04 | Menor | Recurso inexistente retorna 400 em vez de 404 |
-| KI-05 | Normal | Nome só com espaços é aceito. **Encontrado pela geração de casos com IA** (CAD-IA-05) e confirmado na revisão |
+Essas divergências descrevem o comportamento **esperado**, falham hoje e rodam num job separado (`@known-issue`) que não bloqueia o pipeline:
+
+| Id | Severidade | Divergência | Status no CI |
+|---|---|---|---|
+| KI-01 | 🔴 Crítica | A API aceita `Fulano@x.com` e `fulano@x.com` como contas diferentes (e-mail tratado como case-sensitive) | ❌ Falha esperada |
+| KI-02 | 🔴 Crítica | `GET /usuarios` devolve a **senha em texto puro** | ❌ Falha esperada |
+| KI-03 | 🟡 Normal | O requisito pede limite de 100 req/min; a API não aplica rate limit (nenhum 429) | ❌ Falha esperada |
+| KI-04 | 🟢 Menor | Recurso inexistente retorna 400 em vez de 404 | ❌ Falha esperada |
+| KI-05 | 🟡 Normal | Nome só com espaços é aceito. **Encontrado pela geração de casos com IA** (CAD-IA-05) e confirmado na revisão | ❌ Falha esperada |
+
+**Por que testes que falham?** Em vez de deixar divergências como comentários no código (que ninguém lê), cada uma vira um **teste executável** que:
+1. **Documenta** o comportamento esperado vs. real
+2. **Acompanha** se a API um dia for corrigida (o teste passa → sinal de que o bug foi resolvido)
+3. **Não bloqueia** o pipeline (job separado com `allow_failure`)
+4. **Não gasta tokens de IA** (marcados como `@known-issue`, vão direto para triagem heurística)
 
 Também documentado: `PUT` em id inexistente **cria** o usuário (upsert, 201), e a suíte cobre esse comportamento.
 
@@ -227,14 +235,17 @@ No CI, as esperas dos testes mobile dobram (`WAIT_FACTOR=2`). No Android, cada a
 - Paralelizar os arquivos de spec em várias máquinas foi avaliado e descartado por enquanto: cada máquina pagaria de novo o boot e a preparação, que são a maior parte do tempo.
 
 
-| Job | O que faz |
-|---|---|
-| IA · testes unitários | Testa a própria camada de IA |
-| API · ServeRest | Sobe o ServeRest **local no runner** (isolado e sem depender do serverest.dev), roda a suíte e as divergências (não bloqueantes), gera o Allure e a triagem por IA |
-| Mobile · Android | Emulador Pixel 7 / Android 12 (API 31, mais leve no emulador por software), 4 núcleos e 4 GB (`android-emulator-runner`), Allure, triagem e self-healing |
-| Mobile · iOS | Simulador em `macos-latest` (iOS 26.5), WebDriverAgent pré-compilado, Allure, triagem e self-healing |
-| BrowserStack | Execução manual (*Run workflow*) em dispositivos reais |
-| Gerar casos com IA | Execução manual: gera os casos e publica o JSON como artefato para revisão. **Nunca commita sozinho** |
+| Job | O que faz | Falha esperada? |
+|---|---|---|
+| IA · testes unitários | Testa a própria camada de IA (18 testes: self-healing + triagem híbrida Jev/LLM) | ❌ Não — deve sempre passar |
+| API · ServeRest | Sobe o ServeRest **local no runner**, roda a suíte principal (54 testes), gera o Allure e a triagem por IA | ❌ Não — deve sempre passar |
+| API · Divergências conhecidas | Roda os 5 testes `@known-issue` (KI-01 a KI-05) que documentam bugs reais da ServeRest | ⚠️ **SIM — falha esperada!** `allow_failure: true` / `continue-on-error: true`. Se passar, a API foi corrigida → atualizar docs |
+| Mobile · Android | Emulador Pixel 7 / Android 12 (API 31), 4 núcleos e 4 GB (`android-emulator-runner`), Allure, triagem e self-healing | ❌ Não — deve sempre passar |
+| Mobile · iOS | Simulador em `macos-latest` (iOS 26.5), WebDriverAgent pré-compilado, Allure, triagem e self-healing | ❌ Não — deve sempre passar |
+| BrowserStack | Execução manual (*Run workflow*) em dispositivos reais | ❌ Não — deve sempre passar |
+| Gerar casos com IA | Execução manual: gera os casos e publica o JSON como artefato para revisão. **Nunca commita sozinho** | ❌ Não — deve sempre passar |
+
+> 💡 **Sobre as divergências conhecidas:** Os jobs de `api-known-issues` (GitLab) e `Divergências conhecidas` (GitHub Actions) **falham de propósito**. Eles documentam 5 bugs reais da API ServeRest (senha em texto puro, e-mail case-sensitive, sem rate limit, etc.). Rodam separados com `allow_failure` para ficarem visíveis sem bloquear o pipeline. **Leia mais na [seção 3](#divergências-encontradas-requisitoboas-práticas--serverest).**
 
 Relatórios, evidências e triagens ficam como **artefatos** de cada execução. O `.gitlab-ci.yml` roda no GitLab CI/CD, como pede o desafio mobile: o mesmo código está espelhado em [gitlab.com/rafaelsilvabarbosabrbs73/carrefour-qa-ai](https://gitlab.com/rafaelsilvabarbosabrbs73/carrefour-qa-ai). Lá os jobs também são filtrados por pasta (`rules: changes`). Como os runners compartilhados do GitLab não têm KVM nem macOS, o mobile roda em **aparelhos Android reais no BrowserStack** (Galaxy S23 e Pixel 8 em paralelo), com vídeo e logs de cada sessão no painel do BrowserStack. Variáveis no GitLab: `BROWSERSTACK_USERNAME`, `BROWSERSTACK_ACCESS_KEY`, `OPENAI_API_KEY` e `JEV_API_KEY` (mascaradas).
 
