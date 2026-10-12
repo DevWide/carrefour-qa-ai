@@ -63,14 +63,13 @@ api-known-issues:
   rules:
     - changes: *mudou-api
   script:
-    - echo "ATENCAO: Este job VAI FALHAR de proposito. Documenta bugs reais da ServeRest (KI-01 a KI-05)."
+    - echo "ATENCAO - Este job VAI FALHAR de proposito. Documenta bugs reais da ServeRest (KI-01 a KI-05)."
     - echo "Consulte o README secao 3 para detalhes."
     - npm ci --prefix api
     - cd api
     - (npx serverest --timeout 3600 > /dev/null 2>&1 &)
     - npx --yes wait-on http://localhost:3000/usuarios --timeout 60000
-    - npm run test:known-issues || true
-    - echo "Job de divergencias concluido. As falhas acima sao esperadas (allow_failure)."
+    - npm run test:known-issues
 
 mobile-browserstack:
   stage: test

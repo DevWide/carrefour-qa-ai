@@ -7,7 +7,7 @@
  * categoria da causa, confiança, evidência e próxima ação.
  *
  * Estratégia híbrida (Jev + LLM):
- * - Jev (TypeSafe AI): triagem rápida e barata (~50ms, custo mínimo).
+ * - Jev (TypeSafe AI): triagem rápida e barata (~350ms, custo mínimo).
  *   Casos óbvios são resolvidos sem gastar tokens de LLM.
  * - LLM (OpenAI/Gemini/Claude): análise profunda só para casos incertos.
  * - Heurística: fallback quando nenhuma IA está disponível.
@@ -156,7 +156,7 @@ function montarMarkdown({ total, falhas, itens, resumo, modo, stats }) {
 
   linhas.push(
     '> A triagem é uma **sugestão** para acelerar a análise. O resultado dos testes (pass/fail) não é alterado pela IA.',
-    '> ⚡ = resolvido pelo Jev (rápido, ~50ms) · 🧠 = análise profunda pelo LLM · 📋 = regra heurística',
+    '> ⚡ = resolvido pelo Jev (rápido, ~350ms) · 🧠 = análise profunda pelo LLM · 📋 = regra heurística',
   );
   return linhas.join('\n');
 }
@@ -184,10 +184,11 @@ async function main() {
   const llmAtivo = isEnabled();
   let modo = 'heurístico';
   let stats = null;
+  let statsJson;
 
   if (paraIA.length && (jevAtivo || llmAtivo)) {
     // Usa triagem híbrida (Jev + LLM)
-    const triage = new HybridTriage({ confidenceThreshold: Number(process.env.JEV_CONFIDENCE_THRESHOLD) || 0.85 });
+    const triage = new HybridTriage();
     modo = jevAtivo && llmAtivo
       ? `híbrido (⚡ Jev + 🧠 ${PROVIDER}/${MODEL})`
       : jevAtivo
@@ -200,6 +201,7 @@ async function main() {
       const resultados = await triage.analyzeFailures(paraIA, { concurrency: CONCURRENCY });
       itens = [...itens, ...resultados];
       stats = triage.formatStats();
+      statsJson = triage.getStats();
 
       // Gera resumo aggregated a partir dos resultados
       const grupos = {};
@@ -230,7 +232,7 @@ async function main() {
   fs.writeFileSync(path.join(OUT, 'ai-triage.md'), `${md}\n`);
   fs.writeFileSync(
     path.join(OUT, 'ai-triage.json'),
-    `${JSON.stringify({ suite: SUITE, modo, total, itens, stats: stats ? undefined : undefined }, null, 2)}\n`
+    `${JSON.stringify({ suite: SUITE, modo, total, itens, stats: statsJson }, null, 2)}\n`
   );
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${md}\n`);
 

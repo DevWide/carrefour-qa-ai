@@ -116,7 +116,7 @@ Falha detectada
 ```
 
 - **Jev** ([TypeSafe AI](https://typesafe.ai)): modelo discriminativo que retorna probabilidades calibradas em ~350ms. Resolve casos óbvios (ECONNREFUSED → `ambiente`, elemento não encontrado → `teste-quebrado`) sem gastar tokens de LLM.
-- **LLM**: chamado só para casos incertos/ambíguos, recebendo a clasificación preliminar do Jev como contexto.
+- **LLM**: chamado só para casos incertos/ambíguos, recebendo a classificação preliminar do Jev como contexto.
 - **Resultado típico**: 50-70% das falhas resolvidas pelo Jev, reduzindo custo e latência pela metade.
 
 | Componente | Arquivo | Custo típico | Latência |
@@ -127,7 +127,7 @@ Falha detectada
 
 **Teste a integração:** `cd ai && npm run test:jev`
 
-**Funciona sem chave de API.** Sem `JEV_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY` ou `ANTHROPIC_API_KEY`, a triagem usa heurísticas (regras e similaridade de texto), e a geração de casos é pulada. O pipeline nunca quebra por causa da IA.
+**Funciona sem chave de API.** Sem `JEV_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY` ou `ANTHROPIC_API_KEY`, a triagem usa heurísticas (regras sobre a mensagem de erro), e a geração de casos é pulada. O pipeline nunca quebra por causa da IA.
 
 **Governança:**
 - Prompts versionados em `ai/prompts/`.

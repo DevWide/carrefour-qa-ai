@@ -2,7 +2,7 @@
  * Triagem híbrida de falhas: Jev (rápido/barato) + LLM (preciso/caro).
  *
  * Fluxo:
- * 1. Jev faz a triagem inicial de cada falha (~50ms, custo mínimo).
+ * 1. Jev faz a triagem inicial de cada falha (~350ms, custo mínimo).
  * 2. Se a confiança do Jev for >= threshold, aceita a classificação (economiza LLM).
  * 3. Se a confiança for baixa, envia para o LLM com o contexto do Jev como "dica".
  *
@@ -51,7 +51,7 @@ function confiancaParaScore(conf) {
 export class HybridTriage {
   constructor({
     // Threshold padrão: 0.75 (75%) — equilíbrio entre precisão e economia.
-    // Casos óbvios (ECONNREFUSED, elemento não encontrado) обычно têm >90%.
+    // Casos óbvios (ECONNREFUSED, elemento não encontrado) costumam ter >90%.
     // Casos ambíguos ficam abaixo de 70% e vão para o LLM.
     confidenceThreshold = Number(process.env.JEV_CONFIDENCE_THRESHOLD) || 0.75,
     jevClient = null,
@@ -234,7 +234,7 @@ export class HybridTriage {
       if (answers && answers.categoria && typeof answers.categoria.confidence === 'number') {
         confiancaChoice = Math.min(Math.max(answers.categoria.confidence, 0), 1);
       } else if (probabilidadeCategorias[categoria] !== undefined) {
-        const prob = probabilidadCategorias[categoria];
+        const prob = probabilidadeCategorias[categoria];
         if (typeof prob === 'number' && !isNaN(prob)) {
           confiancaChoice = Math.min(Math.max(prob, 0), 1);
         }
@@ -445,7 +445,7 @@ export class HybridTriage {
       'bug-produto': 'Abrir bug para equipe de desenvolvimento com as evidências anexadas.',
       'teste-quebrado': 'Corrigir o teste: revisar seletor, massa de dados ou esperas. Considere rodar o self-healing.',
       'ambiente': 'Verificar infraestrutura (API, emulador, Appium, rede) e reexecutar o pipeline.',
-      'flaky': 'Marcar como flaky, investigar estabilidad e (esperas, dados compartilhados, ordem).',
+      'flaky': 'Marcar como flaky, investigar estabilidade (esperas, dados compartilhados, ordem).',
       'divergencia-requisito': 'Revisar requisito vs comportamento atual. Se confirmado, abrir bug ou atualizar expectativa.',
     };
     return acoes[categoria] || 'Revisar manualmente.';
