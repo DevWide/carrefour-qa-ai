@@ -6,7 +6,7 @@
 # Variáveis (Settings → CI/CD → Variables): OPENAI_API_KEY, GEMINI_API_KEY ou ANTHROPIC_API_KEY (opcional),
 # JEV_API_KEY (opcional, triagem híbrida TypeSafe AI), BROWSERSTACK_USERNAME e BROWSERSTACK_ACCESS_KEY (para o job mobile).
 #
-# ⚠️  O job "api-known-issues" FALHA PROPOSITALMENTE: documenta 5 bugs reais da ServeRest (KI-01 a KI-05).
+# ATENCAO: O job "api-known-issues" FALHA PROPOSITALMENTE: documenta 5 bugs reais da ServeRest (KI-01 a KI-05).
 #     Tem allow_failure: true — as falhas são esperadas e não bloqueiam o pipeline.
 #     Se esse job PASSAR, significa que a API foi corrigida → atualizar o README (seção 3).
 
@@ -65,25 +65,25 @@ api-known-issues:
     - changes: *mudou-api
   script:
     - echo "========================================"
-    - echo "🐛 DIVERGÊNCIAS CONHECIDAS (KI-01 a KI-05)"
+    - echo "DIVERGENCIAS CONHECIDAS (KI-01 a KI-05)"
     - echo "========================================"
     - echo ""
-    - echo "⚠️  ESTE JOB VAI FALHAR PROPOSITALMENTE!"
+    - echo "ATENCAO: ESTE JOB VAI FALHAR PROPOSITALMENTE!"
     - echo ""
     - echo "Estas falhas documentam bugs REAIS da API ServeRest"
     - echo "que violam o requisito ou boas praticas de seguranca:"
     - echo ""
-    - echo "  🔴 KI-01 (Critica): Email case-sensitive (Fulano@x.com ≠ fulano@x.com)"
-    - echo "  🔴 KI-02 (Critica): GET /usuarios devolve senha em texto puro"
-    - echo "  🟡 KI-03 (Normal):  Sem rate limit (requisito pede 100 req/min)"
-    - echo "  🟢 KI-04 (Menor):   Recurso inexistente retorna 400 em vez de 404"
-    - echo "  🟡 KI-05 (Normal):  Nome so com espacos e aceito (descoberto pela IA!)"
+    - echo "  [CRITICA] KI-01: Email case-sensitive (Fulano@x.com != fulano@x.com)"
+    - echo "  [CRITICA] KI-02: GET /usuarios devolve senha em texto puro"
+    - echo "  [NORMAL]  KI-03: Sem rate limit (requisito pede 100 req/min)"
+    - echo "  [MENOR]   KI-04: Recurso inexistente retorna 400 em vez de 404"
+    - echo "  [NORMAL]  KI-05: Nome so com espacos e aceito (descoberto pela IA!)"
     - echo ""
-    - echo "📋 Por que testes que falham intencionalmente?"
-    - echo "   → Documentam o comportamento esperado vs. real"
-    - echo "   → Acompanhham se a API um dia for corrigida (teste passa = bug resolvido)"
-    - echo "   → NAO bloqueiam o pipeline (allow_failure: true)"
-    - echo "   → NAO gastam tokens de IA (marcados como @known-issue)"
+    - echo "Por que testes que falham intencionalmente?"
+    - echo "   - Documentam o comportamento esperado vs. real"
+    - echo "   - Acompanhham se a API um dia for corrigida (teste passa = bug resolvido)"
+    - echo "   - NAO bloqueiam o pipeline (allow_failure: true)"
+    - echo "   - NAO gastam tokens de IA (marcados como @known-issue)"
     - echo ""
     - echo "Se este job PASSAR, significa que a API foi corrigida!"
     - echo "Nesse caso, atualize a documentacao no README (secao 3)."
@@ -94,12 +94,12 @@ api-known-issues:
     - (npx serverest --timeout 3600 > /dev/null 2>&1 &)
     - npx --yes wait-on http://localhost:3000/usuarios --timeout 60000
     - echo ""
-    - echo "🧪 Executando testes de divergencias conhecidas..."
+    - echo "Executando testes de divergencias conhecidas..."
     - npm run test:known-issues || true
     - echo ""
     - echo "========================================"
-    - echo "✅ Job de divergencias concluido (falhas sao esperadas)"
-    - echo "   Consulte os artefatos para detalhes de cada KI."
+    - echo "Job de divergencias concluido (falhas sao esperadas)"
+    - echo "Consulte os artefatos para detalhes de cada KI."
     - echo "========================================"
 
 mobile-browserstack:
